@@ -8,7 +8,7 @@ const state = {
   failed: [],
   prepared: [],
   remaining: [],
-  systemStatus: "Draft ready",
+  systemStatus: "Draf sedia",
   systemNote: "Menunggu confirmation untuk schedule di Threads.",
   storyImageName: "",
   storyImageSource: "",
@@ -393,6 +393,12 @@ function renderMetrics() {
 function renderQueue() {
   const visible = getFilteredPosts();
   els.visibleCount.textContent = `${visible.length} dipaparkan`;
+  if (!visible.length) {
+    els.queueList.replaceChildren(
+      makeEmptyState("Tiada siri ditemui", "Ubah carian atau tapis status lain untuk lihat queue yang sudah dijana."),
+    );
+    return;
+  }
   els.queueList.replaceChildren(
     ...visible.map(({ post, index, status }) => {
       const button = document.createElement("button");
@@ -444,7 +450,20 @@ function renderPreview() {
   els.previewTimezone.textContent = state.timezone;
   els.previewLengths.textContent = lengths.join(" / ");
   els.previewStatusText.textContent = statusDetail(status);
-  els.affiliateLink.href = post.affiliateLink || state.affiliateLink;
+  const affiliateUrl = post.affiliateLink || state.affiliateLink;
+  if (affiliateUrl) {
+    els.affiliateLink.href = affiliateUrl;
+    els.affiliateLink.textContent = "Buka pautan Shopee";
+    els.affiliateLink.removeAttribute("aria-disabled");
+    els.affiliateLink.removeAttribute("tabindex");
+    els.affiliateLink.classList.remove("is-disabled");
+  } else {
+    els.affiliateLink.removeAttribute("href");
+    els.affiliateLink.textContent = "Tiada pautan Shopee";
+    els.affiliateLink.setAttribute("aria-disabled", "true");
+    els.affiliateLink.setAttribute("tabindex", "-1");
+    els.affiliateLink.classList.add("is-disabled");
+  }
 
   els.threadStack.replaceChildren(
     makePostCard("POST UTAMA", post.main),
@@ -469,6 +488,13 @@ function renderStatusTable() {
     });
     return row;
   });
+  if (!rows.length) {
+    els.statusTable.replaceChildren(
+      makeEmptyState("Belum ada status", "Jana story produk dahulu untuk bina jadual dan status posting."),
+    );
+    els.statusTableNote.textContent = "Menunggu jadual";
+    return;
+  }
   els.statusTable.replaceChildren(...rows);
   const counts = getStatusCounts();
   const pendingCount = counts.pending || 0;
@@ -483,11 +509,15 @@ function renderScheduleCalendar() {
 
   if (!days.length) {
     els.scheduleCalendarNote.textContent = "Belum ada jadual";
-    els.scheduleCalendarGrid.replaceChildren();
+    els.scheduleCalendarGrid.replaceChildren(
+      makeEmptyState("Kalendar masih kosong", "Auto cipta story untuk bina slot 20 posting sehari."),
+    );
     els.selectedCalendarDate.textContent = "Tiada hari";
     els.selectedCalendarSummary.textContent = "Jana story dahulu untuk bina kalendar posting.";
     els.selectedCalendarStatusBar.replaceChildren();
-    els.selectedCalendarList.replaceChildren();
+    els.selectedCalendarList.replaceChildren(
+      makeEmptyState("Tiada slot untuk dipaparkan", "Slot harian akan muncul selepas story berjaya dijadualkan."),
+    );
     return;
   }
 
@@ -611,6 +641,17 @@ function renderUnblockAdvice() {
 
 function threadText(post) {
   return `[POST UTAMA]\n${post.main}\n\n[REPLY 1]\n${post.reply1}\n\n[REPLY 2]\n${post.reply2}`;
+}
+
+function makeEmptyState(title, body) {
+  const empty = document.createElement("div");
+  empty.className = "generated-empty empty-state";
+  const heading = document.createElement("strong");
+  heading.textContent = title;
+  const copy = document.createElement("span");
+  copy.textContent = body;
+  empty.append(heading, copy);
+  return empty;
 }
 
 function storyText(versions) {
@@ -754,10 +795,9 @@ function renderPublisher() {
   const entries = state.publisher.lastEntries || [];
   els.publisherLogNote.textContent = entries.length ? `${entries.length} log terakhir` : "Tiada log";
   if (!entries.length) {
-    const empty = document.createElement("div");
-    empty.className = "generated-empty";
-    empty.textContent = "Belum ada dry-run atau publish live.";
-    els.publisherLogList.replaceChildren(empty);
+    els.publisherLogList.replaceChildren(
+      makeEmptyState("Log publisher kosong", "Dry-run atau publish live akan direkodkan di sini selepas dijalankan."),
+    );
     return;
   }
 
@@ -819,10 +859,9 @@ function renderGeneratedStatus() {
     : "Belum ada output baharu";
 
   if (!versions.length) {
-    const empty = document.createElement("div");
-    empty.className = "generated-empty";
-    empty.textContent = "Jana story baharu untuk mula pantau status posting.";
-    els.generatedStatusList.replaceChildren(empty);
+    els.generatedStatusList.replaceChildren(
+      makeEmptyState("Belum ada story dijana", "Upload atau paste gambar produk, kemudian biarkan SMTA cipta dan jadualkan siri Threads."),
+    );
     return;
   }
 
@@ -854,10 +893,14 @@ function renderGeneratedStatus() {
           <button type="button" data-status="failed"${statusDisabled}>Gagal</button>
         </span>
       `;
-      const linkSlot = document.createElement("a");
-      linkSlot.href = version.affiliateLink || "#";
-      linkSlot.target = "_blank";
-      linkSlot.rel = "noreferrer";
+      const linkSlot = document.createElement(version.affiliateLink ? "a" : "span");
+      if (version.affiliateLink) {
+        linkSlot.href = version.affiliateLink;
+        linkSlot.target = "_blank";
+        linkSlot.rel = "noreferrer";
+      } else {
+        linkSlot.className = "disabled-link";
+      }
       linkSlot.textContent = version.affiliateLink ? "Pautan affiliate" : "Tiada pautan affiliate";
       row.insertBefore(linkSlot, row.querySelector(".generated-actions"));
       row.querySelectorAll("button[data-status]").forEach((button) => {
@@ -964,6 +1007,7 @@ function bindStoryGenerator() {
     const imageNotes = els.imageNotes.value.trim();
 
     els.generateStoryButton.disabled = true;
+    els.generateStoryButton.setAttribute("aria-busy", "true");
     els.generateStoryButton.textContent = "AI sedang cipta & jadual...";
     els.storyOutput.value = "";
     setAiStatus(sourceText || imageNotes ? "DeepSeek sedang jana dan jadualkan" : "DeepSeek sedang cari angle dan jadualkan", "ready");
@@ -1007,6 +1051,7 @@ function bindStoryGenerator() {
       setAiStatus("Jana gagal", "warn");
     } finally {
       els.generateStoryButton.disabled = false;
+      els.generateStoryButton.removeAttribute("aria-busy");
       els.generateStoryButton.textContent = "Auto cipta & jadualkan";
     }
   });

@@ -4,10 +4,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Sistem Marvis Threads Auto (SMTA)</title>
+    <meta
+      name="description"
+      content="Sistem Marvis Threads Auto (SMTA) untuk jana story affiliate, bina jadual Threads, dan pantau status posting automatik."
+    />
+    <meta name="theme-color" content="#f3f6fa" />
+    <meta property="og:title" content="Sistem Marvis Threads Auto (SMTA)" />
+    <meta
+      property="og:description"
+      content="Dashboard automasi Threads untuk story produk, jadual 20 posting sehari, status queue, dan publisher API."
+    />
+    <meta property="og:type" content="website" />
     <link rel="icon" href="./assets/smta-favicon.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=8" />
+    <link rel="stylesheet" href="./styles.css?v=9" />
   </head>
   <body>
+    <a class="skip-link" href="#mainContent">Langkau ke kandungan utama</a>
     <div class="system-shell">
       <aside class="side-menu" aria-label="Menu SMTA">
         <div class="brand-block">
@@ -57,7 +69,7 @@
         </footer>
       </aside>
 
-      <main class="app-shell">
+      <main id="mainContent" class="app-shell" tabindex="-1">
         <section class="page-panel active" data-view="dashboard" aria-label="Ringkasan sistem">
           <section class="topbar reveal" aria-label="Ringkasan sistem">
             <div>
@@ -65,10 +77,10 @@
               <h1>Papan Pemuka SMTA</h1>
               <p class="subtitle">Ringkasan status sistem, queue Threads, dan jadual posting automatik.</p>
             </div>
-            <div class="status-card">
+            <div class="status-card" aria-live="polite">
               <span class="status-dot"></span>
               <div>
-                <strong id="systemStatus">Draft ready</strong>
+                <strong id="systemStatus">Draf sedia</strong>
                 <span id="systemNote">Menunggu confirmation untuk schedule di Threads.</span>
               </div>
             </div>
@@ -342,7 +354,7 @@
               <div class="action-strip">
                 <button id="copyThreadButton" type="button">Salin siri ini</button>
                 <button id="copyReply2Button" type="button">Salin CTA reply</button>
-                <a id="affiliateLink" href="#" target="_blank" rel="noreferrer">Buka pautan Shopee</a>
+                <a id="affiliateLink" href="https://s.shopee.com.my/7VDqSOoKf3" target="_blank" rel="noreferrer">Buka pautan Shopee</a>
               </div>
             </article>
           </section>
@@ -460,6 +472,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-    <script src="./app.js?v=6"></script>
+    <script src="./app.js?v=7"></script>
   </body>
 </html>
