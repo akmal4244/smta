@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | Sistem Marvis Threads Auto (SMTA) |
 | Repo slug | smta |
-| Versi | v0.7.2 |
+| Versi | v0.7.4 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -159,6 +159,17 @@ flowchart TD
 SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas SMTA berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.7.4
+
+- Kunci responsive mobile supaya panel SMTA tidak melebar keluar viewport.
+- Topbar dan metrik dipaksa kepada satu kolum pada skrin kecil untuk bacaan lebih selesa.
+
+### v0.7.3
+
+- Guna `taste-skill` untuk polish UI SMTA tanpa mengubah fungsi automasi.
+- Ringankan visual dashboard, buang font remote, tambah focus state, dan kompakkan mobile nav.
+- Tambah reduced-motion handling supaya animasi tidak mengganggu pengguna sensitif motion.
 
 ### v0.7.2
 

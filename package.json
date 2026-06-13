@@ -1,6 +1,6 @@
 {
   "name": "smta",
-  "version": "0.7.2",
+  "version": "0.7.4",
   "private": false,
   "type": "module",
   "description": "Sistem Marvis Threads Auto (SMTA) untuk jana story, jadual Threads, dan automasi publisher.",
