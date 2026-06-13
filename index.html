@@ -1,0 +1,465 @@
+<!doctype html>
+<html lang="ms">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sistem Marvis Threads Auto (SMTA)</title>
+    <link rel="icon" href="./assets/smta-favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css?v=6" />
+  </head>
+  <body>
+    <div class="system-shell">
+      <aside class="side-menu" aria-label="Menu SMTA">
+        <div class="brand-block">
+          <span class="brand-mark">
+            <img src="./assets/smta-logo.svg" alt="Logo SMTA" />
+          </span>
+          <div>
+            <strong>Sistem Marvis Threads Auto (SMTA)</strong>
+            <small>ID: SMTA-LOCAL</small>
+          </div>
+        </div>
+
+        <p class="menu-section">Menu Pentadbir</p>
+
+        <nav class="side-nav" aria-label="Navigasi SMTA">
+          <button class="nav-item active" type="button" data-view-target="dashboard">
+            <span aria-hidden="true">R</span>
+            <strong>Ringkasan</strong>
+            <small>Papan operasi</small>
+          </button>
+          <button class="nav-item" type="button" data-view-target="story">
+            <span aria-hidden="true">S</span>
+            <strong>Jana Story</strong>
+            <small>AI produk</small>
+          </button>
+          <button class="nav-item" type="button" data-view-target="schedule">
+            <span aria-hidden="true">J</span>
+            <strong>Jadual Threads</strong>
+            <small>Kalendar queue</small>
+          </button>
+          <button class="nav-item" type="button" data-view-target="publisher">
+            <span aria-hidden="true">A</span>
+            <strong>Automasi Live</strong>
+            <small>API publisher</small>
+          </button>
+        </nav>
+
+        <div class="side-note">
+          <strong>Had Threads</strong>
+          <span>SMTA guna jadual 20 posting/hari dan pantau maksimum 25 siri Pending aktif. Baki Blocked auto naik bila slot kosong.</span>
+        </div>
+
+        <footer class="side-credit" aria-label="Kredit sistem">
+          <span>Sistem Dibangunkan Sepenuhnya Oleh</span>
+          <strong>Akmal Marvis</strong>
+          <span>&copy; <span id="creditYear">2026</span></span>
+        </footer>
+      </aside>
+
+      <main class="app-shell">
+        <section class="page-panel active" data-view="dashboard" aria-label="Ringkasan sistem">
+          <section class="topbar reveal" aria-label="Ringkasan sistem">
+            <div>
+              <p class="eyebrow">Pentadbir</p>
+              <h1>Papan Pemuka SMTA</h1>
+              <p class="subtitle">Ringkasan status sistem, queue Threads, dan jadual posting automatik.</p>
+            </div>
+            <div class="status-card">
+              <span class="status-dot"></span>
+              <div>
+                <strong id="systemStatus">Draft ready</strong>
+                <span id="systemNote">Menunggu confirmation untuk schedule di Threads.</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="metrics-grid reveal" aria-label="Metrik queue">
+            <article>
+              <span>Total siri</span>
+              <strong id="totalPosts">0</strong>
+            </article>
+            <article>
+              <span>Lulus</span>
+              <strong id="passedPosts">0</strong>
+            </article>
+            <article>
+              <span>Pending</span>
+              <strong id="pendingPosts">0</strong>
+            </article>
+            <article>
+              <span>Gagal</span>
+              <strong id="failedPosts">0</strong>
+            </article>
+            <article>
+              <span>Blocked</span>
+              <strong id="blockedPosts">0</strong>
+            </article>
+          </section>
+
+          <section class="note-panel ops-summary reveal" aria-label="Status operasi">
+            <article>
+              <span>Sync queue</span>
+              <strong>60 saat</strong>
+              <p>Status Pending, Lulus, Blocked dan Gagal disemak semula ikut jadual semasa.</p>
+            </article>
+            <article>
+              <span>Had aktif</span>
+              <strong>25 siri</strong>
+              <p>Siri lebihan disimpan sebagai Blocked sehingga slot automasi kosong.</p>
+            </article>
+            <article>
+              <span>Publisher</span>
+              <strong id="dashboardPublisherMode">Dry-run</strong>
+              <p id="dashboardPublisherNote">Live Threads API dikunci sehingga User ID dan token disahkan.</p>
+            </article>
+          </section>
+
+          <section class="automation-board reveal" aria-label="Status automasi queue">
+            <article class="automation-focus">
+              <div>
+                <p class="eyebrow">Queue automation</p>
+                <h2>Blocked naik sendiri bila slot kosong</h2>
+              </div>
+              <span id="unblockNextWindow">Semak queue</span>
+              <p id="unblockSummary">SMTA sedang sync status queue dan kira slot kosong berdasarkan jadual posting.</p>
+            </article>
+            <div class="automation-rail" aria-label="Peraturan automasi SMTA">
+              <article>
+                <span>Slot</span>
+                <strong>Had 25 aktif</strong>
+                <p>Queue Pending dikekalkan maksimum 25 siri supaya jadual tidak bertindih.</p>
+              </article>
+              <article>
+                <span>Auto</span>
+                <strong>Auto promote</strong>
+                <p>Bila satu slot selesai, siri Blocked paling awal naik ke Pending.</p>
+              </article>
+              <article>
+                <span>Status</span>
+                <strong>Status jelas</strong>
+                <p>Lulus, Pending, Blocked dan Gagal dikira terus dari jadual semasa.</p>
+              </article>
+            </div>
+          </section>
+        </section>
+
+        <section class="page-panel" data-view="story" aria-label="Jana story" hidden>
+          <header class="module-header reveal">
+            <div>
+              <p class="eyebrow">AI Story</p>
+              <h1>Jana Story Produk</h1>
+              <p class="subtitle">Brief boleh kosong. SMTA akan cipta angle, story, dan CTA sendiri ikut gaya netizen Malaysia di Threads.</p>
+            </div>
+            <span id="aiStatus">Semak server AI</span>
+          </header>
+
+          <section class="story-lab reveal" aria-label="Penjana story DeepSeek">
+            <div class="story-grid">
+              <div class="story-inputs">
+                <label class="field-stack">
+                  <span>Brief optional / output asal</span>
+                  <textarea
+                    id="storyInput"
+                    placeholder="Kosongkan pun boleh. Jika ada idea, paste teks produk, cerita, angle, manfaat, atau contoh output lama di sini."
+                  ></textarea>
+                </label>
+                <div class="story-two-col">
+                  <label class="field-stack">
+                    <span>Upload gambar produk</span>
+                    <span class="file-picker">
+                      <input id="storyImage" type="file" accept="image/*" />
+                      <span class="file-button">Pilih gambar</span>
+                      <span id="storyFileName" class="file-name">Belum dipilih</span>
+                    </span>
+                  </label>
+                  <label class="field-stack">
+                    <span>Tema emosi</span>
+                    <select id="storyTheme">
+                      <option value="auto">Auto pilih pain / hope</option>
+                      <option value="pain">Pain</option>
+                      <option value="hope">Hope</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="story-two-col">
+                  <label class="field-stack">
+                    <span>Link gambar produk</span>
+                    <input id="productImageUrl" type="url" placeholder="https://contoh.com/gambar-produk.jpg" />
+                  </label>
+                  <label class="field-stack">
+                    <span>Posting sehari / jumlah versi</span>
+                    <select id="postsPerDay">
+                      <option value="1">1 posting / hari</option>
+                      <option value="3">3 posting / hari</option>
+                      <option value="5">5 posting / hari</option>
+                      <option value="7">7 posting / hari</option>
+                      <option value="20" selected>20 posting / hari</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="field-stack">
+                  <span>Link affiliate produk</span>
+                  <input id="productAffiliateLink" type="url" value="https://s.shopee.com.my/7VDqSOoKf3" />
+                </label>
+                <label class="field-stack">
+                  <span>Nota gambar / produk optional</span>
+                  <textarea
+                    id="imageNotes"
+                    placeholder="Kalau tahu, tulis ringkas. Kalau tak tahu, biarkan kosong dan SMTA akan cipta angle selamat berdasarkan gambar/link produk."
+                  ></textarea>
+                </label>
+                <div class="story-actions-wide">
+                  <input id="versionCount" type="hidden" value="20" />
+                  <button id="generateStoryButton" type="button">Auto cipta & jadualkan</button>
+                </div>
+              </div>
+
+              <div class="story-output-panel">
+                <div id="imagePreview" class="image-preview" tabindex="0">
+                  <img src="./assets/flexi-marble-sheet.png" alt="Gambar produk Flexi Marble Sheet" />
+                  <span class="preview-caption">Gambar produk semasa</span>
+                </div>
+                <p class="helper-text">Klik kotak gambar untuk paste imej dari clipboard, atau guna upload/link gambar.</p>
+                <label class="field-stack">
+                  <span>Output Threads standard</span>
+                  <textarea id="storyOutput" readonly placeholder="[POST UTAMA]&#10;...&#10;&#10;[REPLY 1]&#10;...&#10;&#10;[REPLY 2]&#10;..."></textarea>
+                </label>
+                <div class="action-strip story-actions">
+                  <button id="copyStoryButton" type="button">Salin output</button>
+                  <button id="clearStoryButton" type="button">Kosongkan</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="generated-status-wrap reveal">
+            <div class="panel-heading compact-heading">
+              <h2>Status story dijana</h2>
+              <span id="generatedStatusNote">Belum ada output baharu</span>
+            </div>
+            <div id="generatedStatusList" class="generated-status-list"></div>
+          </section>
+        </section>
+
+        <section class="page-panel" data-view="schedule" aria-label="Jadual Threads" hidden>
+          <header class="module-header reveal">
+            <div>
+              <p class="eyebrow">Jadual Threads</p>
+              <h1>Pengurusan Queue</h1>
+              <p class="subtitle">Cari siri, tapis status, semak slot dan salin post yang perlu dijadualkan.</p>
+            </div>
+          </header>
+
+          <section class="control-band reveal" aria-label="Kawalan semakan">
+            <label class="search-box">
+              <span>Cari teks</span>
+              <input id="searchInput" type="search" placeholder="Contoh: TV wall, rumah sewa, marble" />
+            </label>
+            <label class="filter-box">
+              <span>Status</span>
+              <select id="statusFilter">
+                <option value="all">Semua</option>
+                <option value="passed">Lulus</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Gagal</option>
+                <option value="blocked">Blocked</option>
+                <option value="prepared">Disediakan</option>
+                <option value="issue">Ada isu</option>
+              </select>
+            </label>
+            <button id="copyPromptButton" type="button">Salin teks confirmation</button>
+          </section>
+
+          <section class="calendar-panel reveal" aria-label="Kalendar posting harian">
+            <div class="panel-heading calendar-heading">
+              <div>
+                <h2>Kalendar 20 posting sehari</h2>
+                <p>Semak liputan harian, slot kosong, dan status 20 posting untuk setiap tarikh.</p>
+              </div>
+              <span id="scheduleCalendarNote">Mengira jadual harian</span>
+            </div>
+            <div class="calendar-layout">
+              <div id="scheduleCalendarGrid" class="calendar-grid" aria-label="Hari dalam jadual"></div>
+              <article class="calendar-detail" aria-label="Status hari dipilih">
+                <div class="calendar-detail-head">
+                  <span id="selectedCalendarDate">Pilih hari</span>
+                  <strong id="selectedCalendarSummary">20 posting akan dipaparkan di sini</strong>
+                </div>
+                <div id="selectedCalendarStatusBar" class="calendar-status-bar" aria-label="Ringkasan status hari"></div>
+                <div id="selectedCalendarList" class="calendar-slot-list" aria-label="Senarai slot hari"></div>
+              </article>
+            </div>
+          </section>
+
+          <section class="workbench reveal">
+            <aside class="queue-panel" aria-label="Senarai queue">
+              <div class="panel-heading">
+                <h2>Senarai siri</h2>
+                <span id="visibleCount">0 dipaparkan</span>
+              </div>
+              <div id="queueList" class="queue-list"></div>
+            </aside>
+
+            <article class="preview-panel" aria-label="Pratonton siri">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Pratonton</p>
+                  <h2 id="previewTitle">Pilih siri</h2>
+                </div>
+                <span id="previewBadge" class="badge">Ready</span>
+              </div>
+
+              <dl class="slot-meta">
+                <div>
+                  <dt>Slot</dt>
+                  <dd id="previewSlot">-</dd>
+                </div>
+                <div>
+                  <dt>Zon masa</dt>
+                  <dd id="previewTimezone">Asia/Kuala_Lumpur</dd>
+                </div>
+                <div>
+                  <dt>Had aksara</dt>
+                  <dd id="previewLengths">-</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd id="previewStatusText">-</dd>
+                </div>
+              </dl>
+
+              <section class="status-table-wrap" aria-label="Status semua thread">
+                <div class="panel-heading compact-heading">
+                  <h2>Status semua thread</h2>
+                  <span id="statusTableNote">Auto kemas kini ikut masa slot</span>
+                </div>
+                <div class="status-table" id="statusTable"></div>
+              </section>
+
+              <div class="thread-stack" id="threadStack"></div>
+
+              <div class="action-strip">
+                <button id="copyThreadButton" type="button">Salin siri ini</button>
+                <button id="copyReply2Button" type="button">Salin CTA reply</button>
+                <a id="affiliateLink" href="#" target="_blank" rel="noreferrer">Buka pautan Shopee</a>
+              </div>
+            </article>
+          </section>
+        </section>
+
+        <section class="page-panel" data-view="publisher" aria-label="Threads API Publisher" hidden>
+          <header class="module-header reveal">
+            <div>
+              <p class="eyebrow">Threads API</p>
+              <h1>Automasi Live</h1>
+              <p class="subtitle">Sambungkan Threads API apabila mahu SMTA publish siri Pending yang sudah sampai masa.</p>
+            </div>
+            <span id="publisherModeBadge">Dry-run</span>
+          </header>
+
+          <section class="publisher-layout reveal" aria-label="Tetapan publisher Threads">
+            <article class="publisher-panel publisher-hero">
+              <div class="panel-heading">
+                <h2>Status sambungan</h2>
+                <span id="publisherReadyText">Belum disemak</span>
+              </div>
+              <div class="publisher-summary">
+                <dl>
+                  <div>
+                    <dt>Mode</dt>
+                    <dd id="publisherModeText">Dry-run</dd>
+                  </div>
+                  <div>
+                    <dt>Token</dt>
+                    <dd id="publisherTokenText">Tiada</dd>
+                  </div>
+                  <div>
+                    <dt>Siri dipilih</dt>
+                    <dd id="publisherSelectedText">-</dd>
+                  </div>
+                </dl>
+                <p id="publisherHelpText">Dry-run tidak menghantar post public. Aktifkan live hanya selepas User ID dan token Threads disahkan.</p>
+              </div>
+              <div class="publisher-actions primary-actions">
+                <button id="runPublisherButton" type="button">Run due sekarang</button>
+                <button id="publishSelectedButton" type="button">Publish siri dipilih</button>
+              </div>
+            </article>
+
+            <article class="publisher-panel">
+              <div class="panel-heading">
+                <h2>Tetapan API</h2>
+                <span id="publisherDueText">0 due</span>
+              </div>
+              <div class="publisher-form">
+                <label class="field-stack">
+                  <span>Threads User ID</span>
+                  <input id="threadsUserId" type="text" placeholder="Contoh: 1234567890" autocomplete="off" />
+                </label>
+                <label class="field-stack">
+                  <span>Access token Threads</span>
+                  <input id="threadsAccessToken" type="password" placeholder="Paste token jika mahu simpan / update" autocomplete="off" />
+                </label>
+                <div class="publisher-options">
+                  <label class="check-row">
+                    <input id="threadsEnabled" type="checkbox" />
+                    <span>Aktifkan publisher worker</span>
+                  </label>
+                  <label class="check-row">
+                    <input id="threadsDryRun" type="checkbox" checked />
+                    <span>Dry-run sahaja</span>
+                  </label>
+                </div>
+                <div class="story-two-col">
+                  <label class="field-stack">
+                    <span>Delay publish container</span>
+                    <select id="publishDelaySeconds">
+                      <option value="0">0 saat</option>
+                      <option value="5">5 saat</option>
+                      <option value="15">15 saat</option>
+                      <option value="30" selected>30 saat</option>
+                    </select>
+                  </label>
+                  <label class="field-stack">
+                    <span>Due setiap sync</span>
+                    <select id="maxDuePerSync">
+                      <option value="1" selected>1 siri</option>
+                      <option value="2">2 siri</option>
+                      <option value="3">3 siri</option>
+                      <option value="5">5 siri</option>
+                      <option value="10">10 siri</option>
+                      <option value="20">20 siri</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="field-stack">
+                  <span>Mode reply</span>
+                  <select id="replyMode">
+                    <option value="chain">Reply 2 balas Reply 1</option>
+                    <option value="root">Semua reply balas post utama</option>
+                  </select>
+                </label>
+                <div class="publisher-actions">
+                  <button id="savePublisherButton" type="button">Simpan tetapan</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="publisher-panel">
+              <div class="panel-heading">
+                <h2>Log publisher</h2>
+                <span id="publisherLogNote">Tiada log</span>
+              </div>
+              <div id="publisherLogList" class="publisher-log-list"></div>
+            </article>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+    <script src="./app.js?v=6"></script>
+  </body>
+</html>

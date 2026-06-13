@@ -1,0 +1,21 @@
+{
+  "name": "smta",
+  "version": "0.7.1",
+  "private": false,
+  "type": "module",
+  "description": "Sistem Marvis Threads Auto (SMTA) untuk jana story, jadual Threads, dan automasi publisher.",
+  "scripts": {
+    "start": "node server.mjs 8791",
+    "ai": "node ai-server.mjs 8788",
+    "check": "node --check app.js && node --check ai-server.mjs && node --check server.mjs"
+  },
+  "keywords": [
+    "threads",
+    "affiliate",
+    "automation",
+    "malaysia",
+    "smta"
+  ],
+  "author": "Akmal Marvis",
+  "license": "UNLICENSED"
+}
