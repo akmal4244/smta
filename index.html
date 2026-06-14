@@ -12,7 +12,7 @@
     <meta property="og:title" content="Sistem Marvis Threads Auto (SMTA)" />
     <meta
       property="og:description"
-      content="Dashboard automasi Threads untuk story produk, jadual 20 posting sehari, status queue, dan publisher API."
+      content="Dashboard automasi Threads untuk story produk, jadual 25 posting sehari, status queue, dan publisher API."
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="./assets/smta-favicon.svg?v=2" type="image/svg+xml" />
@@ -59,7 +59,7 @@
 
         <div class="side-note">
           <strong>Had Threads</strong>
-          <span>SMTA guna jadual 20 posting/hari dan pantau maksimum 25 siri Pending aktif. Baki Blocked auto naik bila slot kosong.</span>
+          <span>SMTA guna jadual 25 posting/hari dan pantau maksimum 25 siri Pending aktif. Baki Blocked auto naik bila slot kosong.</span>
         </div>
 
         <footer class="side-credit" aria-label="Kredit sistem">
@@ -206,7 +206,8 @@
                       <option value="3">3 posting / hari</option>
                       <option value="5">5 posting / hari</option>
                       <option value="7">7 posting / hari</option>
-                      <option value="20" selected>20 posting / hari</option>
+                      <option value="20">20 posting / hari</option>
+                      <option value="25" selected>25 posting / hari</option>
                     </select>
                   </label>
                 </div>
@@ -222,7 +223,7 @@
                   ></textarea>
                 </label>
                 <div class="story-actions-wide">
-                  <input id="versionCount" type="hidden" value="20" />
+                  <input id="versionCount" type="hidden" value="25" />
                   <button id="generateStoryButton" type="button">Auto cipta & jadualkan</button>
                 </div>
               </div>
@@ -286,8 +287,8 @@
           <section class="calendar-panel reveal" aria-label="Kalendar posting harian">
             <div class="panel-heading calendar-heading">
               <div>
-                <h2>Kalendar 20 posting sehari</h2>
-                <p>Semak liputan harian, slot kosong, dan status 20 posting untuk setiap tarikh.</p>
+                <h2>Kalendar 25 posting sehari</h2>
+                <p>Semak liputan harian, slot kosong, dan status 25 posting untuk setiap tarikh.</p>
               </div>
               <span id="scheduleCalendarNote">Mengira jadual harian</span>
             </div>
@@ -296,7 +297,7 @@
               <article class="calendar-detail" aria-label="Status hari dipilih">
                 <div class="calendar-detail-head">
                   <span id="selectedCalendarDate">Pilih hari</span>
-                  <strong id="selectedCalendarSummary">20 posting akan dipaparkan di sini</strong>
+                  <strong id="selectedCalendarSummary">25 posting akan dipaparkan di sini</strong>
                 </div>
                 <div id="selectedCalendarStatusBar" class="calendar-status-bar" aria-label="Ringkasan status hari"></div>
                 <div id="selectedCalendarList" class="calendar-slot-list" aria-label="Senarai slot hari"></div>
@@ -442,6 +443,7 @@
                       <option value="5">5 siri</option>
                       <option value="10">10 siri</option>
                       <option value="20">20 siri</option>
+                      <option value="25">25 siri</option>
                     </select>
                   </label>
                 </div>
@@ -472,6 +474,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-    <script src="./app.js?v=7"></script>
+    <script src="./app.js?v=9"></script>
   </body>
 </html>

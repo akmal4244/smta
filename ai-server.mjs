@@ -19,6 +19,7 @@ const deepseekUrl = "https://api.deepseek.com/chat/completions";
 const threadsGraphUrl = "https://graph.threads.net/v1.0";
 const threadsScheduleLimit = 25;
 const threadsApiDailyPublishLimit = 250;
+const maxPostingPerDay = 25;
 const postingTimePresets = {
   1: ["10:00"],
   3: ["09:30", "12:30", "20:30"],
@@ -45,6 +46,33 @@ const postingTimePresets = {
     "20:10",
     "21:15",
     "22:30",
+  ],
+  25: [
+    "07:00",
+    "07:40",
+    "08:20",
+    "09:00",
+    "09:40",
+    "10:20",
+    "11:00",
+    "11:40",
+    "12:20",
+    "13:00",
+    "13:40",
+    "14:20",
+    "15:00",
+    "15:40",
+    "16:20",
+    "17:00",
+    "17:40",
+    "18:20",
+    "19:00",
+    "19:40",
+    "20:20",
+    "21:00",
+    "21:40",
+    "22:20",
+    "23:00",
   ],
 };
 
@@ -89,7 +117,7 @@ async function readThreadsConfig() {
   config.tokenFile = String(config.tokenFile || threadsTokenFile);
   config.replyMode = config.replyMode === "root" ? "root" : "chain";
   config.publishDelaySeconds = Math.max(0, Math.min(Number(config.publishDelaySeconds || 30), 60));
-  config.maxDuePerSync = Math.max(1, Math.min(Number(config.maxDuePerSync || 1), 20));
+  config.maxDuePerSync = Math.max(1, Math.min(Number(config.maxDuePerSync || 1), maxPostingPerDay));
   return config;
 }
 
@@ -764,7 +792,7 @@ async function scheduleGeneratedVersions(input, result, runId) {
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
   const versions = Array.isArray(result.versions) ? result.versions : [];
   const affiliateLink = String(input.affiliateLink || scheduleData.affiliate_link || "https://s.shopee.com.my/7VDqSOoKf3").trim();
-  const postsPerDay = Math.max(1, Math.min(Number(input.postsPerDay || versions.length || 5), 20));
+  const postsPerDay = Math.max(1, Math.min(Number(input.postsPerDay || versions.length || 5), maxPostingPerDay));
   const slots = buildScheduleSlots(posts, versions.length, postsPerDay);
   const startNumber = posts.length + 1;
 
@@ -854,7 +882,7 @@ async function readBody(req) {
 }
 
 function buildPrompt(input) {
-  const versions = Math.max(1, Math.min(Number(input.versions || input.postsPerDay || 3), 20));
+  const versions = Math.max(1, Math.min(Number(input.versions || input.postsPerDay || 3), maxPostingPerDay));
   const theme = input.theme || "auto";
   const sourceText = String(input.sourceText || "").trim();
   const imageNotes = String(input.imageNotes || "").trim();
@@ -862,7 +890,7 @@ function buildPrompt(input) {
   const imageUrl = String(input.imageUrl || "").trim();
   const imageSource = String(input.imageSource || "").trim();
   const affiliateLink = String(input.affiliateLink || "https://s.shopee.com.my/7VDqSOoKf3").trim();
-  const postsPerDay = Math.max(1, Math.min(Number(input.postsPerDay || 5), 20));
+  const postsPerDay = Math.max(1, Math.min(Number(input.postsPerDay || 5), maxPostingPerDay));
   const hasProductContext = Boolean(sourceText || imageNotes || imageName || imageUrl || imageSource);
   const autoContext = hasProductContext
     ? "Ada sedikit konteks produk daripada gambar/link/nota. Tafsir secara berhati-hati dan jangan reka spesifikasi teknikal yang tidak diberi."
@@ -1124,7 +1152,7 @@ async function updatePublisherConfig(input) {
     threadsUserId: String(input.threadsUserId || "").trim(),
     replyMode: input.replyMode === "root" ? "root" : "chain",
     publishDelaySeconds: Math.max(0, Math.min(Number(input.publishDelaySeconds || 30), 60)),
-    maxDuePerSync: Math.max(1, Math.min(Number(input.maxDuePerSync || 1), 20)),
+    maxDuePerSync: Math.max(1, Math.min(Number(input.maxDuePerSync || 1), maxPostingPerDay)),
   };
 
   const token = String(input.accessToken || "").trim();

@@ -1,6 +1,6 @@
 # Sistem Marvis Threads Auto (SMTA)
 
-**Sistem Marvis Threads Auto (SMTA)** ialah sistem automasi kandungan Threads untuk affiliate marketing. Sistem ini membantu jana story produk dalam Bahasa Melayu Malaysia, susun jadual 20 posting sehari, pantau status queue, dan sediakan publisher automatik melalui Threads API.
+**Sistem Marvis Threads Auto (SMTA)** ialah sistem automasi kandungan Threads untuk affiliate marketing. Sistem ini membantu jana story produk dalam Bahasa Melayu Malaysia, susun jadual 25 posting sehari, pantau status queue, dan sediakan publisher automatik melalui Threads API.
 
 Nama rasmi sistem:
 
@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | Sistem Marvis Threads Auto (SMTA) |
 | Repo slug | smta |
-| Versi | v0.7.5 |
+| Versi | v0.7.6 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -18,9 +18,9 @@ Nama rasmi sistem:
 - Jana siri 3 post Threads: `[POST UTAMA]`, `[REPLY 1]`, `[REPLY 2]`.
 - Storytelling deep storyline untuk netizen Malaysia.
 - Input produk melalui gambar upload, paste gambar, link gambar, nota produk, dan link affiliate.
-- Pilihan posting sehari termasuk `20 posting / hari`.
+- Pilihan posting sehari termasuk `25 posting / hari`.
 - Auto cipta story dan terus masukkan ke jadual SMTA.
-- Kalendar jadual harian dengan semakan 20 slot sehari.
+- Kalendar jadual harian dengan semakan 25 slot sehari.
 - Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, dan `Disediakan`.
 - Auto promote `Blocked` kepada `Pending` bila slot schedule kosong.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
@@ -146,7 +146,7 @@ SMTA menggunakan JSON file database supaya ringan dan mudah audit.
 flowchart TD
   A["Input produk / gambar / link affiliate"] --> B["Jana story AI"]
   B --> C["Validasi format Threads"]
-  C --> D["Masuk jadual 20 posting sehari"]
+  C --> D["Masuk jadual 25 posting sehari"]
   D --> E["Pending maksimum 25 aktif"]
   E --> F["Blocked menunggu slot kosong"]
   F --> G["Auto promote kepada Pending"]
@@ -159,6 +159,12 @@ flowchart TD
 SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas SMTA berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.7.6
+
+- Tukar default SMTA kepada `25 posting / hari`.
+- Tambah option `25 posting / hari` di Jana Story dan `25 siri` di automasi publisher.
+- Kalendar Jadual Threads kini menyemak sasaran 25 slot sehari.
 
 ### v0.7.5
 

@@ -8,84 +8,84 @@
       "imageSource": "",
       "imageUrl": "",
       "affiliateLink": "https://s.shopee.com.my/5q5lqSXkro",
-      "postsPerDay": 20,
+      "postsPerDay": 25,
       "versions": [
         {
           "id": "run-1781335679708-v1",
           "label": "Versi 1",
           "status": "blocked",
           "scheduleNumber": 36,
-          "slot": "2026-06-15 14:20",
+          "slot": "2026-06-15 10:20",
           "mainLength": 160,
           "reply1Length": 158,
           "reply2Length": 185,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781335679708-v2",
           "label": "Versi 2",
           "status": "blocked",
           "scheduleNumber": 37,
-          "slot": "2026-06-15 15:10",
+          "slot": "2026-06-15 11:00",
           "mainLength": 128,
           "reply1Length": 130,
           "reply2Length": 175,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781335679708-v3",
           "label": "Versi 3",
           "status": "blocked",
           "scheduleNumber": 38,
-          "slot": "2026-06-15 16:00",
+          "slot": "2026-06-15 11:40",
           "mainLength": 120,
           "reply1Length": 113,
           "reply2Length": 174,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781335679708-v4",
           "label": "Versi 4",
           "status": "blocked",
           "scheduleNumber": 39,
-          "slot": "2026-06-15 16:50",
+          "slot": "2026-06-15 12:20",
           "mainLength": 123,
           "reply1Length": 148,
           "reply2Length": 170,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781335679708-v5",
           "label": "Versi 5",
           "status": "blocked",
           "scheduleNumber": 40,
-          "slot": "2026-06-15 17:40",
+          "slot": "2026-06-15 13:00",
           "mainLength": 126,
           "reply1Length": 120,
           "reply2Length": 174,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781335679708-v6",
           "label": "Versi 6",
           "status": "blocked",
           "scheduleNumber": 41,
-          "slot": "2026-06-15 18:30",
+          "slot": "2026-06-15 13:40",
           "mainLength": 117,
           "reply1Length": 104,
           "reply2Length": 172,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781335679708-v7",
           "label": "Versi 7",
           "status": "blocked",
           "scheduleNumber": 42,
-          "slot": "2026-06-15 19:20",
+          "slot": "2026-06-15 14:20",
           "mainLength": 118,
           "reply1Length": 116,
           "reply2Length": 149,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         }
       ],
       "schedule": {
@@ -133,7 +133,7 @@
             "queueStatus": "blocked"
           }
         ],
-        "postsPerDay": 7,
+        "postsPerDay": 25,
         "activeScheduledLimit": 25,
         "apiDailyPublishLimit": 250,
         "automation": {
@@ -149,7 +149,8 @@
             "number": 3,
             "slot": "2026-06-13 17:45",
             "time": 1781343900000
-          }
+          },
+          "activeScheduledLimit": 25
         }
       }
     },
@@ -161,84 +162,84 @@
       "imageSource": "url",
       "imageUrl": "http://localhost/smta/assets/flexi-marble-sheet.png",
       "affiliateLink": "https://s.shopee.com.my/7VDqSOoKf3",
-      "postsPerDay": 20,
+      "postsPerDay": 25,
       "versions": [
         {
           "id": "run-1781353215627-v1",
           "label": "Versi 1",
           "status": "blocked",
           "scheduleNumber": 43,
-          "slot": "2026-06-15 20:10",
+          "slot": "2026-06-15 15:00",
           "mainLength": 142,
           "reply1Length": 203,
           "reply2Length": 254,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781353215627-v2",
           "label": "Versi 2",
           "status": "blocked",
           "scheduleNumber": 44,
-          "slot": "2026-06-15 21:15",
+          "slot": "2026-06-15 15:40",
           "mainLength": 153,
           "reply1Length": 191,
           "reply2Length": 190,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781353215627-v3",
           "label": "Versi 3",
           "status": "blocked",
           "scheduleNumber": 45,
-          "slot": "2026-06-15 22:30",
+          "slot": "2026-06-15 16:20",
           "mainLength": 140,
           "reply1Length": 190,
           "reply2Length": 175,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781353215627-v4",
           "label": "Versi 4",
           "status": "blocked",
           "scheduleNumber": 46,
-          "slot": "2026-06-16 07:30",
+          "slot": "2026-06-15 17:00",
           "mainLength": 149,
           "reply1Length": 173,
           "reply2Length": 148,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781353215627-v5",
           "label": "Versi 5",
           "status": "blocked",
           "scheduleNumber": 47,
-          "slot": "2026-06-16 08:10",
+          "slot": "2026-06-15 17:40",
           "mainLength": 143,
           "reply1Length": 171,
           "reply2Length": 151,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781353215627-v6",
           "label": "Versi 6",
           "status": "blocked",
           "scheduleNumber": 48,
-          "slot": "2026-06-16 08:50",
+          "slot": "2026-06-15 18:20",
           "mainLength": 158,
           "reply1Length": 178,
           "reply2Length": 172,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781353215627-v7",
           "label": "Versi 7",
           "status": "blocked",
           "scheduleNumber": 49,
-          "slot": "2026-06-16 09:30",
+          "slot": "2026-06-15 19:00",
           "mainLength": 146,
           "reply1Length": 174,
           "reply2Length": 148,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         }
       ],
       "schedule": {
@@ -286,7 +287,7 @@
             "queueStatus": "blocked"
           }
         ],
-        "postsPerDay": 7,
+        "postsPerDay": 25,
         "activeScheduledLimit": 25,
         "apiDailyPublishLimit": 250,
         "automation": {
@@ -302,7 +303,8 @@
             "number": 5,
             "slot": "2026-06-13 22:00",
             "time": 1781359200000
-          }
+          },
+          "activeScheduledLimit": 25
         }
       }
     },
@@ -314,84 +316,84 @@
       "imageSource": "url",
       "imageUrl": "https://down-bs-my.img.susercontent.com/my-11134207-820l9-mk27ex29aj2854.webp",
       "affiliateLink": "https://s.shopee.com.my/902oCbnlhL",
-      "postsPerDay": 20,
+      "postsPerDay": 25,
       "versions": [
         {
           "id": "run-1781366066158-v1",
           "label": "Versi 1",
           "status": "blocked",
           "scheduleNumber": 50,
-          "slot": "2026-06-16 10:10",
+          "slot": "2026-06-15 19:40",
           "mainLength": 97,
           "reply1Length": 133,
           "reply2Length": 190,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781366066158-v2",
           "label": "Versi 2",
           "status": "blocked",
           "scheduleNumber": 51,
-          "slot": "2026-06-16 10:50",
+          "slot": "2026-06-15 20:20",
           "mainLength": 92,
           "reply1Length": 107,
           "reply2Length": 160,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781366066158-v3",
           "label": "Versi 3",
           "status": "blocked",
           "scheduleNumber": 52,
-          "slot": "2026-06-16 11:30",
+          "slot": "2026-06-15 21:00",
           "mainLength": 88,
           "reply1Length": 118,
           "reply2Length": 154,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781366066158-v4",
           "label": "Versi 4",
           "status": "blocked",
           "scheduleNumber": 53,
-          "slot": "2026-06-16 12:10",
+          "slot": "2026-06-15 21:40",
           "mainLength": 99,
           "reply1Length": 93,
           "reply2Length": 166,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781366066158-v5",
           "label": "Versi 5",
           "status": "blocked",
           "scheduleNumber": 54,
-          "slot": "2026-06-16 12:50",
+          "slot": "2026-06-15 22:20",
           "mainLength": 127,
           "reply1Length": 86,
           "reply2Length": 150,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781366066158-v6",
           "label": "Versi 6",
           "status": "blocked",
           "scheduleNumber": 55,
-          "slot": "2026-06-16 13:30",
+          "slot": "2026-06-15 23:00",
           "mainLength": 91,
           "reply1Length": 119,
           "reply2Length": 163,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781366066158-v7",
           "label": "Versi 7",
           "status": "blocked",
           "scheduleNumber": 56,
-          "slot": "2026-06-16 14:20",
+          "slot": "2026-06-16 07:00",
           "mainLength": 98,
           "reply1Length": 128,
           "reply2Length": 152,
-          "updatedAt": "2026-06-14 00:19 GMT+8"
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         }
       ],
       "schedule": {
@@ -439,7 +441,7 @@
             "queueStatus": "blocked"
           }
         ],
-        "postsPerDay": 7,
+        "postsPerDay": 25,
         "activeScheduledLimit": 25,
         "apiDailyPublishLimit": 250,
         "automation": {
@@ -455,7 +457,8 @@
             "number": 6,
             "slot": "2026-06-14 09:30",
             "time": 1781400600000
-          }
+          },
+          "activeScheduledLimit": 25
         }
       }
     },
@@ -467,207 +470,227 @@
       "imageSource": "url",
       "imageUrl": "http://localhost/smta/assets/flexi-marble-sheet.png",
       "affiliateLink": "https://s.shopee.com.my/7VDqSOoKf3",
-      "postsPerDay": 20,
+      "postsPerDay": 25,
       "versions": [
         {
           "id": "run-1781367430438-v1",
           "label": "Versi 1",
           "status": "blocked",
           "scheduleNumber": 57,
-          "slot": "2026-06-16 15:10",
+          "slot": "2026-06-16 07:40",
           "mainLength": 132,
           "reply1Length": 116,
-          "reply2Length": 190
+          "reply2Length": 190,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v2",
           "label": "Versi 2",
           "status": "blocked",
           "scheduleNumber": 58,
-          "slot": "2026-06-16 16:00",
+          "slot": "2026-06-16 08:20",
           "mainLength": 119,
           "reply1Length": 108,
-          "reply2Length": 166
+          "reply2Length": 166,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v3",
           "label": "Versi 3",
           "status": "blocked",
           "scheduleNumber": 59,
-          "slot": "2026-06-16 16:50",
+          "slot": "2026-06-16 09:00",
           "mainLength": 112,
           "reply1Length": 98,
-          "reply2Length": 144
+          "reply2Length": 144,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v4",
           "label": "Versi 4",
           "status": "blocked",
           "scheduleNumber": 60,
-          "slot": "2026-06-16 17:40",
+          "slot": "2026-06-16 09:40",
           "mainLength": 89,
           "reply1Length": 86,
-          "reply2Length": 166
+          "reply2Length": 166,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v5",
           "label": "Versi 5",
           "status": "blocked",
           "scheduleNumber": 61,
-          "slot": "2026-06-16 18:30",
+          "slot": "2026-06-16 10:20",
           "mainLength": 92,
           "reply1Length": 80,
-          "reply2Length": 147
+          "reply2Length": 147,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v6",
           "label": "Versi 6",
           "status": "blocked",
           "scheduleNumber": 62,
-          "slot": "2026-06-16 19:20",
+          "slot": "2026-06-16 11:00",
           "mainLength": 82,
           "reply1Length": 85,
-          "reply2Length": 149
+          "reply2Length": 149,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v7",
           "label": "Versi 7",
           "status": "blocked",
           "scheduleNumber": 63,
-          "slot": "2026-06-16 20:10",
+          "slot": "2026-06-16 11:40",
           "mainLength": 82,
           "reply1Length": 95,
-          "reply2Length": 145
+          "reply2Length": 145,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v8",
           "label": "Versi 8",
           "status": "blocked",
           "scheduleNumber": 64,
-          "slot": "2026-06-16 21:15",
+          "slot": "2026-06-16 12:20",
           "mainLength": 120,
           "reply1Length": 82,
-          "reply2Length": 144
+          "reply2Length": 144,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v9",
           "label": "Versi 9",
           "status": "blocked",
           "scheduleNumber": 65,
-          "slot": "2026-06-16 22:30",
+          "slot": "2026-06-16 13:00",
           "mainLength": 81,
           "reply1Length": 66,
-          "reply2Length": 139
+          "reply2Length": 139,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v10",
           "label": "Versi 10",
           "status": "blocked",
           "scheduleNumber": 66,
-          "slot": "2026-06-17 07:30",
+          "slot": "2026-06-16 13:40",
           "mainLength": 111,
           "reply1Length": 71,
-          "reply2Length": 144
+          "reply2Length": 144,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v11",
           "label": "Versi 11",
           "status": "blocked",
           "scheduleNumber": 67,
-          "slot": "2026-06-17 08:10",
+          "slot": "2026-06-16 14:20",
           "mainLength": 87,
           "reply1Length": 76,
-          "reply2Length": 158
+          "reply2Length": 158,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v12",
           "label": "Versi 12",
           "status": "blocked",
           "scheduleNumber": 68,
-          "slot": "2026-06-17 08:50",
+          "slot": "2026-06-16 15:00",
           "mainLength": 78,
           "reply1Length": 61,
-          "reply2Length": 144
+          "reply2Length": 144,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v13",
           "label": "Versi 13",
           "status": "blocked",
           "scheduleNumber": 69,
-          "slot": "2026-06-17 09:30",
+          "slot": "2026-06-16 15:40",
           "mainLength": 89,
           "reply1Length": 95,
-          "reply2Length": 141
+          "reply2Length": 141,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v14",
           "label": "Versi 14",
           "status": "blocked",
           "scheduleNumber": 70,
-          "slot": "2026-06-17 10:10",
+          "slot": "2026-06-16 16:20",
           "mainLength": 87,
           "reply1Length": 77,
-          "reply2Length": 140
+          "reply2Length": 140,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v15",
           "label": "Versi 15",
           "status": "blocked",
           "scheduleNumber": 71,
-          "slot": "2026-06-17 10:50",
+          "slot": "2026-06-16 17:00",
           "mainLength": 85,
           "reply1Length": 72,
-          "reply2Length": 125
+          "reply2Length": 125,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v16",
           "label": "Versi 16",
           "status": "blocked",
           "scheduleNumber": 72,
-          "slot": "2026-06-17 11:30",
+          "slot": "2026-06-16 17:40",
           "mainLength": 83,
           "reply1Length": 63,
-          "reply2Length": 141
+          "reply2Length": 141,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v17",
           "label": "Versi 17",
           "status": "blocked",
           "scheduleNumber": 73,
-          "slot": "2026-06-17 12:10",
+          "slot": "2026-06-16 18:20",
           "mainLength": 105,
           "reply1Length": 74,
-          "reply2Length": 132
+          "reply2Length": 132,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v18",
           "label": "Versi 18",
           "status": "blocked",
           "scheduleNumber": 74,
-          "slot": "2026-06-17 12:50",
+          "slot": "2026-06-16 19:00",
           "mainLength": 99,
           "reply1Length": 104,
-          "reply2Length": 146
+          "reply2Length": 146,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v19",
           "label": "Versi 19",
           "status": "blocked",
           "scheduleNumber": 75,
-          "slot": "2026-06-17 13:30",
+          "slot": "2026-06-16 19:40",
           "mainLength": 87,
           "reply1Length": 72,
-          "reply2Length": 131
+          "reply2Length": 131,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781367430438-v20",
           "label": "Versi 20",
           "status": "blocked",
           "scheduleNumber": 76,
-          "slot": "2026-06-17 14:20",
+          "slot": "2026-06-16 20:20",
           "mainLength": 84,
           "reply1Length": 89,
-          "reply2Length": 146
+          "reply2Length": 146,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         }
       ],
       "schedule": {
@@ -793,7 +816,7 @@
             "queueStatus": "blocked"
           }
         ],
-        "postsPerDay": 20,
+        "postsPerDay": 25,
         "activeScheduledLimit": 25,
         "apiDailyPublishLimit": 250,
         "automation": {
@@ -809,7 +832,8 @@
             "number": 6,
             "slot": "2026-06-14 07:30",
             "time": 1781393400000
-          }
+          },
+          "activeScheduledLimit": 25
         }
       }
     },
@@ -821,207 +845,227 @@
       "imageSource": "url",
       "imageUrl": "https://down-ws-my.img.susercontent.com/sg-11134201-823p4-mogqlduerz0pce.webp",
       "affiliateLink": "https://s.shopee.com.my/5q5mTxqz8i",
-      "postsPerDay": 20,
+      "postsPerDay": 25,
       "versions": [
         {
           "id": "run-1781368886044-v1",
           "label": "Versi 1",
           "status": "blocked",
           "scheduleNumber": 77,
-          "slot": "2026-06-17 15:10",
+          "slot": "2026-06-16 21:00",
           "mainLength": 127,
           "reply1Length": 183,
-          "reply2Length": 233
+          "reply2Length": 233,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v2",
           "label": "Versi 2",
           "status": "blocked",
           "scheduleNumber": 78,
-          "slot": "2026-06-17 16:00",
+          "slot": "2026-06-16 21:40",
           "mainLength": 141,
           "reply1Length": 163,
-          "reply2Length": 252
+          "reply2Length": 252,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v3",
           "label": "Versi 3",
           "status": "blocked",
           "scheduleNumber": 79,
-          "slot": "2026-06-17 16:50",
+          "slot": "2026-06-16 22:20",
           "mainLength": 153,
           "reply1Length": 154,
-          "reply2Length": 189
+          "reply2Length": 189,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v4",
           "label": "Versi 4",
           "status": "blocked",
           "scheduleNumber": 80,
-          "slot": "2026-06-17 17:40",
+          "slot": "2026-06-16 23:00",
           "mainLength": 127,
           "reply1Length": 148,
-          "reply2Length": 233
+          "reply2Length": 233,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v5",
           "label": "Versi 5",
           "status": "blocked",
           "scheduleNumber": 81,
-          "slot": "2026-06-17 18:30",
+          "slot": "2026-06-17 07:00",
           "mainLength": 164,
           "reply1Length": 138,
-          "reply2Length": 216
+          "reply2Length": 216,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v6",
           "label": "Versi 6",
           "status": "blocked",
           "scheduleNumber": 82,
-          "slot": "2026-06-17 19:20",
+          "slot": "2026-06-17 07:40",
           "mainLength": 150,
           "reply1Length": 133,
-          "reply2Length": 210
+          "reply2Length": 210,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v7",
           "label": "Versi 7",
           "status": "blocked",
           "scheduleNumber": 83,
-          "slot": "2026-06-17 20:10",
+          "slot": "2026-06-17 08:20",
           "mainLength": 143,
           "reply1Length": 155,
-          "reply2Length": 231
+          "reply2Length": 231,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v8",
           "label": "Versi 8",
           "status": "blocked",
           "scheduleNumber": 84,
-          "slot": "2026-06-17 21:15",
+          "slot": "2026-06-17 09:00",
           "mainLength": 139,
           "reply1Length": 167,
-          "reply2Length": 208
+          "reply2Length": 208,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v9",
           "label": "Versi 9",
           "status": "blocked",
           "scheduleNumber": 85,
-          "slot": "2026-06-17 22:30",
+          "slot": "2026-06-17 09:40",
           "mainLength": 143,
           "reply1Length": 149,
-          "reply2Length": 196
+          "reply2Length": 196,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v10",
           "label": "Versi 10",
           "status": "blocked",
           "scheduleNumber": 86,
-          "slot": "2026-06-18 07:30",
+          "slot": "2026-06-17 10:20",
           "mainLength": 132,
           "reply1Length": 137,
-          "reply2Length": 211
+          "reply2Length": 211,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v11",
           "label": "Versi 11",
           "status": "blocked",
           "scheduleNumber": 87,
-          "slot": "2026-06-18 08:10",
+          "slot": "2026-06-17 11:00",
           "mainLength": 147,
           "reply1Length": 153,
-          "reply2Length": 236
+          "reply2Length": 236,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v12",
           "label": "Versi 12",
           "status": "blocked",
           "scheduleNumber": 88,
-          "slot": "2026-06-18 08:50",
+          "slot": "2026-06-17 11:40",
           "mainLength": 124,
           "reply1Length": 123,
-          "reply2Length": 217
+          "reply2Length": 217,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v13",
           "label": "Versi 13",
           "status": "blocked",
           "scheduleNumber": 89,
-          "slot": "2026-06-18 09:30",
+          "slot": "2026-06-17 12:20",
           "mainLength": 147,
           "reply1Length": 145,
-          "reply2Length": 226
+          "reply2Length": 226,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v14",
           "label": "Versi 14",
           "status": "blocked",
           "scheduleNumber": 90,
-          "slot": "2026-06-18 10:10",
+          "slot": "2026-06-17 13:00",
           "mainLength": 111,
           "reply1Length": 131,
-          "reply2Length": 217
+          "reply2Length": 217,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v15",
           "label": "Versi 15",
           "status": "blocked",
           "scheduleNumber": 91,
-          "slot": "2026-06-18 10:50",
+          "slot": "2026-06-17 13:40",
           "mainLength": 136,
           "reply1Length": 150,
-          "reply2Length": 237
+          "reply2Length": 237,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v16",
           "label": "Versi 16",
           "status": "blocked",
           "scheduleNumber": 92,
-          "slot": "2026-06-18 11:30",
+          "slot": "2026-06-17 14:20",
           "mainLength": 144,
           "reply1Length": 154,
-          "reply2Length": 212
+          "reply2Length": 212,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v17",
           "label": "Versi 17",
           "status": "blocked",
           "scheduleNumber": 93,
-          "slot": "2026-06-18 12:10",
+          "slot": "2026-06-17 15:00",
           "mainLength": 129,
           "reply1Length": 141,
-          "reply2Length": 211
+          "reply2Length": 211,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v18",
           "label": "Versi 18",
           "status": "blocked",
           "scheduleNumber": 94,
-          "slot": "2026-06-18 12:50",
+          "slot": "2026-06-17 15:40",
           "mainLength": 131,
           "reply1Length": 145,
-          "reply2Length": 201
+          "reply2Length": 201,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v19",
           "label": "Versi 19",
           "status": "blocked",
           "scheduleNumber": 95,
-          "slot": "2026-06-18 13:30",
+          "slot": "2026-06-17 16:20",
           "mainLength": 143,
           "reply1Length": 134,
-          "reply2Length": 183
+          "reply2Length": 183,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         },
         {
           "id": "run-1781368886044-v20",
           "label": "Versi 20",
           "status": "blocked",
           "scheduleNumber": 96,
-          "slot": "2026-06-18 14:20",
+          "slot": "2026-06-17 17:00",
           "mainLength": 143,
           "reply1Length": 175,
-          "reply2Length": 210
+          "reply2Length": 210,
+          "updatedAt": "2026-06-14 08:02 GMT+8"
         }
       ],
       "schedule": {
@@ -1147,7 +1191,7 @@
             "queueStatus": "blocked"
           }
         ],
-        "postsPerDay": 20,
+        "postsPerDay": 25,
         "activeScheduledLimit": 25,
         "apiDailyPublishLimit": 250,
         "automation": {
@@ -1163,7 +1207,8 @@
             "number": 6,
             "slot": "2026-06-14 07:30",
             "time": 1781393400000
-          }
+          },
+          "activeScheduledLimit": 25
         }
       }
     }

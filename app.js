@@ -26,7 +26,7 @@ const state = {
 
 const AI_SERVER_URL = "http://127.0.0.1:8788";
 const THREADS_SCHEDULE_LIMIT = 25;
-const DAILY_POSTING_TARGET = 20;
+const DAILY_POSTING_TARGET = 25;
 const DEFAULT_PRODUCT_IMAGE = "./assets/flexi-marble-sheet.png";
 const DEFAULT_PRODUCT_IMAGE_LABEL = "Gambar produk Flexi Marble Sheet";
 
@@ -294,7 +294,7 @@ function calendarHealth(day) {
   const total = day.posts.length;
   const failedOrIssue = (day.counts.failed || 0) + (day.counts.issue || 0);
   if (total === DAILY_POSTING_TARGET && failedOrIssue === 0) {
-    return { label: "Cukup 20", className: "healthy" };
+    return { label: `Cukup ${DAILY_POSTING_TARGET}`, className: "healthy" };
   }
   if (total < DAILY_POSTING_TARGET) {
     return { label: `Kurang ${DAILY_POSTING_TARGET - total}`, className: "warning" };
@@ -510,7 +510,7 @@ function renderScheduleCalendar() {
   if (!days.length) {
     els.scheduleCalendarNote.textContent = "Belum ada jadual";
     els.scheduleCalendarGrid.replaceChildren(
-      makeEmptyState("Kalendar masih kosong", "Auto cipta story untuk bina slot 20 posting sehari."),
+      makeEmptyState("Kalendar masih kosong", "Auto cipta story untuk bina slot 25 posting sehari."),
     );
     els.selectedCalendarDate.textContent = "Tiada hari";
     els.selectedCalendarSummary.textContent = "Jana story dahulu untuk bina kalendar posting.";
