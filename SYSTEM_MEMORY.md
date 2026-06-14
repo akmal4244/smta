@@ -27,6 +27,10 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Token dan API key tidak boleh di-commit ke repo.
 - Cookie Shopee jika digunakan mesti disimpan sebagai env `SHOPEE_COOKIE` atau `work/private/shopee-cookie.txt`, tidak boleh di-commit.
 - Runtime JSON aktif berada dalam `work/runtime/` dan tidak di-commit.
+- Dashboard/API automation dilindungi admin auth secara default melalui `THREADSME_AUTH_REQUIRED=true`.
+- Semua POST API protected perlukan CSRF token daripada session admin.
+- CORS mesti dikunci kepada `THREADSME_ALLOWED_ORIGINS`; jangan guna wildcard bila public deploy.
+- Runtime backup disimpan di `work/backups/` dan tidak di-commit.
 
 ## Peraturan Story Produk
 
@@ -68,8 +72,9 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 | `work/runtime/status.json` | Runtime status queue aktif yang dikemas kini automasi. |
 | `work/runtime/story-runs.json` | Runtime story run aktif. |
 | `work/runtime/publish-log.json` | Runtime log publisher aktif. |
+| `work/backups/*.json` | Snapshot backup runtime daripada butang/API backup. |
 | `publish-log.json` | Log publisher legacy; tidak di-commit. |
-| `work/private/` | Lokasi private untuk API key dan token; tidak di-commit. |
+| `work/private/` | Lokasi private untuk API key, token, admin auth, session, dan Shopee cookie; tidak di-commit. |
 
 ## Snapshot Audit Terakhir
 
@@ -82,7 +87,7 @@ Snapshot ini dibuat pada `2026-06-14` dan boleh berubah apabila automasi berjala
 - Remaining/Blocked: `87`.
 - Batch terbaru `#97-#121` ditetapkan kepada produk `Sambal Nyet Berapi by Khairulaming 180g`.
 - Batch terbaru sudah bawah `300 aksara` untuk setiap post.
-- Ada siri generated lama yang belum ada metadata `productTitle`; Auto Audit v0.9.5 patut cuba isi daripada link Shopee/DeepSeek secara berperingkat.
+- Ada siri generated lama yang belum ada metadata `productTitle`; Auto Audit v0.9.6 patut cuba isi daripada link Shopee/DeepSeek secara berperingkat.
 
 ## Prinsip Design
 
@@ -98,9 +103,10 @@ Snapshot ini dibuat pada `2026-06-14` dan boleh berubah apabila automasi berjala
 ## Keutamaan Naik Taraf Seterusnya
 
 1. Pantau Product Audit untuk siri lama yang masih `needs_product_verification`.
-2. Tambah export/import backup untuk `work/runtime/`.
+2. Tambah import/restore backup terpilih untuk `work/runtime/`.
 3. Tambah pilihan tone rewrite dalam Preview Netizen: lebih soft sell, lebih deep story, atau lebih direct CTA.
 4. Tambah dashboard usage DeepSeek per run dan anggaran kos.
+5. Tambah role permission jika ThreadsMe nanti ada lebih daripada seorang admin.
 
 ## Larangan Penting
 
@@ -108,3 +114,4 @@ Snapshot ini dibuat pada `2026-06-14` dan boleh berubah apabila automasi berjala
 - Jangan palsukan status `Pending`; status itu hanya sah selepas sistem benar-benar masukkan siri ke queue aktif.
 - Jangan jadikan `Blocked` sebagai gagal. Ia cuma menunggu slot.
 - Jangan publish live ke Threads tanpa confirmation dan tanpa semakan token/User ID.
+- Jangan expose AI server ke public tanpa auth, locked CORS, dan reverse proxy yang sesuai.

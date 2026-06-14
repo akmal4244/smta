@@ -1,6 +1,6 @@
 {
   "name": "threadsme",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "private": false,
   "type": "module",
   "description": "ThreadsMe untuk jana story, jadual Threads, dan automasi publisher.",
@@ -10,7 +10,8 @@
     "ai": "node ai-server.mjs 8788",
     "ai:hidden": "powershell -ExecutionPolicy Bypass -File scripts/start-ai-hidden.ps1",
     "deploy:xampp": "powershell -ExecutionPolicy Bypass -File scripts/deploy-xampp.ps1",
-    "check": "node --check app.js && node --check ai-server.mjs && node --check server.mjs"
+    "check": "node --check app.js && node --check ai-server.mjs && node --check server.mjs && node --check scripts/qa-smoke.mjs",
+    "qa:smoke": "node scripts/qa-smoke.mjs"
   },
   "keywords": [
     "threads",

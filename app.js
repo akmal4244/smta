@@ -21,21 +21,44 @@ const state = {
   autoAudit: { summary: null, actions: [] },
   productAudit: { summary: null, items: [] },
   productIntel: null,
+  auth: { authRequired: false, authenticated: false, setupRequired: false, csrfToken: "" },
+  appStarted: false,
   aiHealth: { ok: false, hasKey: false, model: "" },
   publisher: {
     config: null,
     dueNumbers: [],
     lastEntries: [],
   },
+  shopeeCookie: { hasCookie: false, source: "none", file: "" },
 };
 
 const AI_SERVER_URL = "http://127.0.0.1:8788";
 const THREADS_SCHEDULE_LIMIT = 25;
 const DAILY_POSTING_TARGET = 25;
-const DEFAULT_PRODUCT_IMAGE = "./assets/flexi-marble-sheet.png";
+const DEFAULT_PRODUCT_IMAGE = "./assets/flexi-marble-sheet.webp";
 const DEFAULT_PRODUCT_IMAGE_LABEL = "Gambar produk Flexi Marble Sheet";
 
+function apiFetch(path, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  const headers = new Headers(options.headers || {});
+  if (method !== "GET" && method !== "HEAD" && state.auth.csrfToken) {
+    headers.set("x-threadsme-csrf", state.auth.csrfToken);
+  }
+  return fetch(`${AI_SERVER_URL}${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
+}
+
 const els = {
+  authGate: document.querySelector("#authGate"),
+  authTitle: document.querySelector("#authTitle"),
+  authHelp: document.querySelector("#authHelp"),
+  adminPassword: document.querySelector("#adminPassword"),
+  authSubmitButton: document.querySelector("#authSubmitButton"),
+  authStatus: document.querySelector("#authStatus"),
+  logoutButton: document.querySelector("#logoutButton"),
   systemStatus: document.querySelector("#systemStatus"),
   systemNote: document.querySelector("#systemNote"),
   totalPosts: document.querySelector("#totalPosts"),
@@ -59,6 +82,7 @@ const els = {
   runAutoAuditPageButton: document.querySelector("#runAutoAuditPageButton"),
   openActionsButton: document.querySelector("#openActionsButton"),
   openAuditFromActionsButton: document.querySelector("#openAuditFromActionsButton"),
+  downloadBackupButton: document.querySelector("#downloadBackupButton"),
   creditYear: document.querySelector("#creditYear"),
   queueList: document.querySelector("#queueList"),
   visibleCount: document.querySelector("#visibleCount"),
@@ -137,6 +161,10 @@ const els = {
   maxDuePerSync: document.querySelector("#maxDuePerSync"),
   replyMode: document.querySelector("#replyMode"),
   savePublisherButton: document.querySelector("#savePublisherButton"),
+  shopeeCookieStatus: document.querySelector("#shopeeCookieStatus"),
+  shopeeCookieInput: document.querySelector("#shopeeCookieInput"),
+  saveShopeeCookieButton: document.querySelector("#saveShopeeCookieButton"),
+  clearShopeeCookieButton: document.querySelector("#clearShopeeCookieButton"),
   runPublisherButton: document.querySelector("#runPublisherButton"),
   publishSelectedButton: document.querySelector("#publishSelectedButton"),
   unblockNextWindow: document.querySelector("#unblockNextWindow"),
@@ -221,9 +249,98 @@ function applyStatusData(statusData = {}) {
   }
 }
 
+function renderAuthGate() {
+  if (!els.authGate) return;
+  const auth = state.auth;
+  const needsGate = auth.authRequired && !auth.authenticated;
+  els.authGate.hidden = !needsGate;
+  document.body.classList.toggle("auth-locked", needsGate);
+  if (els.logoutButton) els.logoutButton.hidden = !auth.authRequired || !auth.authenticated;
+  if (!needsGate) return;
+  const setup = Boolean(auth.setupRequired);
+  if (els.authTitle) els.authTitle.textContent = setup ? "Setup Admin ThreadsMe" : "Login ThreadsMe";
+  if (els.authHelp) {
+    els.authHelp.textContent = setup
+      ? "Tetapkan kata laluan admin pertama. Ia disimpan dalam folder private dan tidak di-commit."
+      : "Masukkan kata laluan admin untuk akses dashboard dan API automation.";
+  }
+  if (els.authSubmitButton) els.authSubmitButton.textContent = setup ? "Setup & masuk" : "Masuk";
+  if (els.adminPassword) {
+    els.adminPassword.autocomplete = setup ? "new-password" : "current-password";
+  }
+}
+
+async function refreshAuthStatus() {
+  const response = await apiFetch("/api/auth/status", { cache: "no-store" });
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error || "Auth status gagal");
+  state.auth = {
+    authRequired: Boolean(data.authRequired),
+    authenticated: Boolean(data.authenticated),
+    setupRequired: Boolean(data.setupRequired),
+    csrfToken: data.csrfToken || "",
+  };
+  renderAuthGate();
+  return state.auth;
+}
+
+async function submitAuth() {
+  if (!els.adminPassword || !els.authSubmitButton) return;
+  const password = els.adminPassword.value;
+  if (!password) {
+    if (els.authStatus) els.authStatus.textContent = "Masukkan kata laluan admin.";
+    return;
+  }
+  els.authSubmitButton.disabled = true;
+  if (els.authStatus) els.authStatus.textContent = state.auth.setupRequired ? "Menyimpan setup admin..." : "Login...";
+  try {
+    const endpoint = state.auth.setupRequired ? "/api/auth/setup" : "/api/auth/login";
+    const response = await apiFetch(endpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Login gagal");
+    state.auth = {
+      authRequired: Boolean(data.authRequired),
+      authenticated: Boolean(data.authenticated),
+      setupRequired: Boolean(data.setupRequired),
+      csrfToken: data.csrfToken || "",
+    };
+    els.adminPassword.value = "";
+    if (els.authStatus) els.authStatus.textContent = "Akses disahkan.";
+    renderAuthGate();
+    await startApplicationData();
+  } catch (error) {
+    if (els.authStatus) els.authStatus.textContent = error.message;
+  } finally {
+    els.authSubmitButton.disabled = false;
+  }
+}
+
+async function logoutAdmin() {
+  try {
+    await apiFetch("/api/auth/logout", { method: "POST", cache: "no-store" });
+  } catch {
+    // Logout should still clear the UI state even if the server is temporarily unavailable.
+  }
+  state.auth = { authRequired: true, authenticated: false, setupRequired: false, csrfToken: "" };
+  state.appStarted = false;
+  renderAuthGate();
+}
+
+function bindAuthGate() {
+  els.authSubmitButton?.addEventListener("click", submitAuth);
+  els.adminPassword?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") submitAuth();
+  });
+  els.logoutButton?.addEventListener("click", logoutAdmin);
+}
+
 async function syncAutomationStatus() {
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/automation/sync`, {
+    const response = await apiFetch("/api/automation/sync", {
       method: "POST",
       cache: "no-store",
     });
@@ -249,7 +366,7 @@ async function syncAutomationStatus() {
 async function loadScheduleData() {
   let data = null;
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/system-data`, { cache: "no-store" });
+    const response = await apiFetch("/api/system-data", { cache: "no-store" });
     const payload = await response.json();
     if (!response.ok || !payload.ok) throw new Error(payload.error || "System data failed");
     data = payload.schedule || {};
@@ -282,13 +399,14 @@ async function refreshSystemData({ includeStories = true } = {}) {
   await loadAutoAudit();
   await loadAutomationHealth();
   await loadPublisherStatus();
+  await loadShopeeCookieStatus();
   render();
 }
 
 async function loadProductAudit() {
   if (!els.auditIssueList && !els.auditSummaryBadge) return;
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/product-audit`, { cache: "no-store" });
+    const response = await apiFetch("/api/product-audit", { cache: "no-store" });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "Audit produk gagal");
     state.productAudit = {
@@ -307,7 +425,7 @@ async function loadProductAudit() {
 async function loadAutomationHealth() {
   if (!els.automationHealthGrid) return;
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/automation-health`, { cache: "no-store" });
+    const response = await apiFetch("/api/automation-health", { cache: "no-store" });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "Automation health gagal");
     state.automationHealth = data;
@@ -319,7 +437,7 @@ async function loadAutomationHealth() {
 async function loadAutoAudit() {
   if (!els.dashboardActionsList && !els.actionPageList) return;
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/auto-audit`, { cache: "no-store" });
+    const response = await apiFetch("/api/auto-audit", { cache: "no-store" });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "Auto audit gagal");
     state.autoAudit = {
@@ -1196,7 +1314,7 @@ function setAiStatus(text, tone = "neutral") {
 async function checkAiServer() {
   if (!els.aiStatus) return;
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/health`, { cache: "no-store" });
+    const response = await apiFetch("/api/health", { cache: "no-store" });
     const data = await response.json();
     state.aiHealth = { ok: Boolean(data.ok), hasKey: Boolean(data.hasKey), model: data.model || "" };
     if (data.ok && data.hasKey) {
@@ -1213,7 +1331,7 @@ async function checkAiServer() {
 async function loadStoryRuns() {
   if (!els.generatedStatusList) return;
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/story-runs`, { cache: "no-store" });
+    const response = await apiFetch("/api/story-runs", { cache: "no-store" });
     const data = await response.json();
     state.storyRuns = Array.isArray(data.runs) ? data.runs : [];
   } catch {
@@ -1233,7 +1351,7 @@ function applyPublisherData(data = {}) {
 async function loadPublisherStatus() {
   if (!els.publisherLogList) return;
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/threads-publisher/status`, { cache: "no-store" });
+    const response = await apiFetch("/api/threads-publisher/status", { cache: "no-store" });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "Publisher status failed");
     applyPublisherData(data);
@@ -1243,6 +1361,69 @@ async function loadPublisherStatus() {
       dueNumbers: [],
       lastEntries: [],
     };
+  }
+}
+
+async function loadShopeeCookieStatus() {
+  if (!els.shopeeCookieStatus) return;
+  try {
+    const response = await apiFetch("/api/shopee-cookie/status", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Status Shopee gagal");
+    state.shopeeCookie = {
+      hasCookie: Boolean(data.hasCookie),
+      source: data.source || "none",
+      file: data.file || "",
+    };
+  } catch (error) {
+    state.shopeeCookie = { hasCookie: false, source: "error", file: "", error: error.message };
+  }
+}
+
+async function saveShopeeCookie(cookie) {
+  const response = await apiFetch("/api/shopee-cookie/config", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ cookie }),
+  });
+  const data = await response.json();
+  if (!response.ok || !data.ok) throw new Error(data.error || "Gagal simpan cookie Shopee");
+  state.shopeeCookie = {
+    hasCookie: Boolean(data.hasCookie),
+    source: data.source || "none",
+    file: data.file || "",
+  };
+  return state.shopeeCookie;
+}
+
+async function downloadRuntimeBackup() {
+  if (!els.downloadBackupButton) return;
+  els.downloadBackupButton.disabled = true;
+  els.downloadBackupButton.textContent = "Backup...";
+  try {
+    const response = await apiFetch("/api/runtime-backup/snapshot", { method: "POST", cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Backup gagal");
+    const blob = new Blob([JSON.stringify(data.backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `threadsme-backup-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")}.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    els.downloadBackupButton.textContent = "Backup selesai";
+    window.setTimeout(() => {
+      els.downloadBackupButton.textContent = "Backup runtime";
+    }, 1600);
+  } catch (error) {
+    els.downloadBackupButton.textContent = error.message;
+    window.setTimeout(() => {
+      els.downloadBackupButton.textContent = "Backup runtime";
+    }, 2200);
+  } finally {
+    els.downloadBackupButton.disabled = false;
   }
 }
 
@@ -1256,6 +1437,7 @@ function isPublisherFormFocused() {
     els.publishDelaySeconds,
     els.maxDuePerSync,
     els.replyMode,
+    els.shopeeCookieInput,
   ].includes(active);
 }
 
@@ -1302,6 +1484,18 @@ function renderPublisher() {
     els.replyMode.value = config.replyMode || "chain";
   }
 
+  if (els.shopeeCookieStatus) {
+    const shopee = state.shopeeCookie || {};
+    els.shopeeCookieStatus.textContent = shopee.error
+      ? "Gagal semak"
+      : shopee.hasCookie
+        ? shopee.source === "env"
+          ? "Cookie dari env"
+          : "Cookie disimpan"
+        : "Tiada cookie";
+    els.shopeeCookieStatus.className = shopee.hasCookie ? "ready" : "warn";
+  }
+
   const entries = state.publisher.lastEntries || [];
   els.publisherLogNote.textContent = entries.length ? `${entries.length} log terakhir` : "Tiada log";
   if (!entries.length) {
@@ -1333,7 +1527,7 @@ function renderPublisher() {
 }
 
 async function updateGeneratedStatus(versionId, status) {
-  const response = await fetch(`${AI_SERVER_URL}/api/story-runs/status`, {
+  const response = await apiFetch("/api/story-runs/status", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ versionId, status }),
@@ -1484,7 +1678,7 @@ async function runProductIntel(options = {}) {
       : "ThreadsMe sedang cuba kenal pasti produk daripada link dan nota.";
   }
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/product-intel`, {
+    const response = await apiFetch("/api/product-intel", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -1647,7 +1841,7 @@ function bindStoryGenerator() {
 
     try {
       const verification = getCurrentProductVerification(productTitle);
-      const response = await fetch(`${AI_SERVER_URL}/api/generate-story`, {
+      const response = await apiFetch("/api/generate-story", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -1735,7 +1929,7 @@ async function savePublisherConfig() {
   els.savePublisherButton.disabled = true;
   els.savePublisherButton.textContent = "Menyimpan...";
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/threads-publisher/config`, {
+    const response = await apiFetch("/api/threads-publisher/config", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -1765,7 +1959,7 @@ async function runPublisherDue() {
   els.runPublisherButton.disabled = true;
   els.runPublisherButton.textContent = "Running...";
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/threads-publisher/run-due`, {
+    const response = await apiFetch("/api/threads-publisher/run-due", {
       method: "POST",
       cache: "no-store",
     });
@@ -1791,7 +1985,7 @@ async function publishSelectedSeries() {
   els.publishSelectedButton.disabled = true;
   els.publishSelectedButton.textContent = config.dryRun ? "Dry-run..." : "Publishing...";
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/threads-publisher/publish-one`, {
+    const response = await apiFetch("/api/threads-publisher/publish-one", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ number, force: true }),
@@ -1824,6 +2018,34 @@ function bindPublisherControls() {
       els.publisherHelpText.textContent = error.message;
     });
   });
+  els.saveShopeeCookieButton?.addEventListener("click", async () => {
+    els.saveShopeeCookieButton.disabled = true;
+    els.saveShopeeCookieButton.textContent = "Menyimpan...";
+    try {
+      await saveShopeeCookie(els.shopeeCookieInput.value);
+      els.shopeeCookieInput.value = "";
+      renderPublisher();
+    } catch (error) {
+      if (els.shopeeCookieStatus) els.shopeeCookieStatus.textContent = error.message;
+    } finally {
+      els.saveShopeeCookieButton.disabled = false;
+      els.saveShopeeCookieButton.textContent = "Simpan cookie";
+    }
+  });
+  els.clearShopeeCookieButton?.addEventListener("click", async () => {
+    els.clearShopeeCookieButton.disabled = true;
+    els.clearShopeeCookieButton.textContent = "Clearing...";
+    try {
+      await saveShopeeCookie("");
+      els.shopeeCookieInput.value = "";
+      renderPublisher();
+    } catch (error) {
+      if (els.shopeeCookieStatus) els.shopeeCookieStatus.textContent = error.message;
+    } finally {
+      els.clearShopeeCookieButton.disabled = false;
+      els.clearShopeeCookieButton.textContent = "Clear cookie";
+    }
+  });
 }
 
 async function saveProductAuditMetadata() {
@@ -1831,7 +2053,7 @@ async function saveProductAuditMetadata() {
   els.auditSaveMetadataButton.disabled = true;
   els.auditActionStatus.textContent = "Menyimpan metadata...";
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/product-audit/update`, {
+    const response = await apiFetch("/api/product-audit/update", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -1857,7 +2079,7 @@ async function regenerateProductAuditStories() {
   els.auditRegenerateButton.disabled = true;
   els.auditActionStatus.textContent = "Regenerate story...";
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/product-audit/regenerate`, {
+    const response = await apiFetch("/api/product-audit/regenerate", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -1886,7 +2108,7 @@ async function runAutoAuditNow(sourceButton) {
   });
   if (sourceButton) sourceButton.textContent = "Auto audit berjalan...";
   try {
-    const response = await fetch(`${AI_SERVER_URL}/api/auto-audit/run`, {
+    const response = await apiFetch("/api/auto-audit/run", {
       method: "POST",
       cache: "no-store",
     });
@@ -1939,6 +2161,9 @@ function bindAuditControls() {
   });
   els.openActionsButton?.addEventListener("click", () => showView("actions"));
   els.openAuditFromActionsButton?.addEventListener("click", () => showView("audit"));
+  els.downloadBackupButton?.addEventListener("click", () => {
+    downloadRuntimeBackup();
+  });
 }
 
 async function copyText(text) {
@@ -2147,9 +2372,9 @@ function bindTasteMotion() {
   animateActiveView();
 }
 
-async function boot() {
-  if (els.creditYear) els.creditYear.textContent = String(new Date().getFullYear());
-  bindActions();
+async function startApplicationData() {
+  if (state.appStarted) return;
+  state.appStarted = true;
   const initialView = window.location.hash.replace("#", "");
   if (initialView && Array.from(els.pagePanels).some((panel) => panel.dataset.view === initialView)) {
     showView(initialView);
@@ -2159,9 +2384,27 @@ async function boot() {
   bindRevealMotion();
   bindTasteMotion();
   window.setInterval(async () => {
+    if (state.auth.authRequired && !state.auth.authenticated) return;
     await refreshSystemData();
     bindTasteMotion();
   }, 60_000);
+}
+
+async function boot() {
+  if (els.creditYear) els.creditYear.textContent = String(new Date().getFullYear());
+  bindActions();
+  bindAuthGate();
+  try {
+    await refreshAuthStatus();
+  } catch (error) {
+    state.auth = { authRequired: true, authenticated: false, setupRequired: false, csrfToken: "" };
+    renderAuthGate();
+    if (els.authStatus) els.authStatus.textContent = `Auth server gagal: ${error.message}`;
+    return;
+  }
+  if (!state.auth.authRequired || state.auth.authenticated) {
+    await startApplicationData();
+  }
 }
 
 boot().catch((error) => {

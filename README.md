@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | ThreadsMe |
 | Repo slug | threadsme |
-| Versi | v0.9.5 |
+| Versi | v0.9.6 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -44,6 +44,8 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Automation Health untuk semak AI server, DeepSeek key, Pending 25/25, Blocked, publisher, dan audit issue.
 - Preview Netizen untuk semak rasa manusia sebelum publish.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
+- Admin auth untuk lindungi dashboard dan API automation sebelum sistem dibuka secara public.
+- CORS terkawal, CSRF token untuk POST, dan runtime backup satu klik.
 - UI refresh gaya Kumo UI dan `gpt-taste`: semantic color token, surface hierarchy, sidebar premium, table compact, focus state jelas, dan motion GSAP yang ringan.
 
 ## Workflow Produk Tepat
@@ -118,6 +120,26 @@ Server AI default:
 http://127.0.0.1:8788
 ```
 
+## Keselamatan Admin
+
+ThreadsMe kini melindungi semua API automation kecuali `health` dan auth endpoint.
+
+Default production:
+
+- `THREADSME_AUTH_REQUIRED=true`.
+- Password admin boleh diset melalui GUI pada login pertama atau env `THREADSME_ADMIN_PASSWORD`.
+- Session cookie ialah `HttpOnly` + `SameSite=Lax`.
+- Semua `POST` protected perlukan CSRF token daripada login session.
+- CORS hanya benarkan origin dalam `THREADSME_ALLOWED_ORIGINS`.
+
+Contoh origin local:
+
+```text
+http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,http://localhost:8791,http://127.0.0.1:8791
+```
+
+Jika deploy ke domain sebenar, tambah domain itu dalam `THREADSME_ALLOWED_ORIGINS` dan jangan guna wildcard.
+
 ## API Key
 
 ThreadsMe tidak commit API key ke repo.
@@ -135,6 +157,12 @@ Atau simpan dalam fail private:
 work/private/deepseek.key
 ```
 
+Shopee cookie untuk Product Intel:
+
+```text
+work/private/shopee-cookie.txt
+```
+
 Threads access token pula boleh disimpan melalui GUI Publisher atau melalui env:
 
 ```bash
@@ -146,9 +174,22 @@ Fail private yang diabaikan git:
 ```text
 work/private/
 work/runtime/
+work/backups/
+work/qa-runtime-*/
 publish-log.json
 .env
 ```
+
+## Semakan QA
+
+Semak syntax dan smoke test API:
+
+```bash
+npm run check
+npm run qa:smoke
+```
+
+Smoke test akan hidupkan AI server temp, uji auth setup, CSRF, CORS reject, generate story fallback, simpan cookie Shopee kosong, dan buat runtime backup.
 
 ## Struktur Sistem
 
@@ -156,13 +197,19 @@ publish-log.json
 threadsme/
 |-- assets/
 |   |-- flexi-marble-sheet.png
+|   |-- flexi-marble-sheet.webp
+|   |-- vendor/
+|   |   |-- ScrollTrigger.min.js
+|   |   `-- gsap.min.js
 |   |-- threadsme-favicon.svg
 |   `-- threadsme-logo.svg
 |-- docs/
 |   |-- IMPROVEMENT_BACKLOG.md
 |   `-- OPERATION_RUNBOOK.md
 |-- scripts/
-|   `-- deploy-xampp.ps1
+|   |-- deploy-xampp.ps1
+|   |-- qa-smoke.mjs
+|   `-- start-ai-hidden.ps1
 |-- ai-server.mjs
 |-- app.js
 |-- index.html
@@ -189,6 +236,7 @@ ThreadsMe menggunakan JSON file database supaya ringan dan mudah audit.
 | `status.json` | Snapshot status queue contoh/legacy untuk fallback static. Runtime sebenar kini disalin ke `work/runtime/status.json`. |
 | `story-runs.json` | Snapshot rekod output AI contoh/legacy untuk fallback static. Runtime sebenar kini disalin ke `work/runtime/story-runs.json`. |
 | `work/runtime/*.json` | Runtime database aktif untuk status, story runs, dan publish log. Fail ini tidak di-commit. |
+| `work/backups/*.json` | Snapshot backup runtime daripada GUI/API. Fail ini tidak di-commit. |
 | `publish-log.json` | Log publisher legacy. Runtime aktif ialah `work/runtime/publish-log.json`. Fail ini tidak di-commit. |
 | `work/private/*.json` dan `work/private/*.txt` | Token/API key private. Fail ini tidak di-commit. |
 
@@ -221,6 +269,19 @@ ThreadsMe kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas ThreadsMe berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.9.6
+
+- Tambah admin auth, first-run setup, session cookie, dan CSRF token untuk POST API.
+- Lock CORS kepada origin localhost yang dibenarkan melalui `THREADSME_ALLOWED_ORIGINS`; wildcard dibuang.
+- Betulkan static server path guard menggunakan `path.relative` untuk kurangkan risiko traversal/prefix edge case.
+- Validation error API kini pulang HTTP `400/401/403/404` yang sesuai dan mesej server crash disanitasi sebagai `500`.
+- Tambah panel `Shopee Product Intel` untuk simpan/clear cookie Shopee private melalui GUI.
+- Tambah runtime backup/export melalui API dan butang `Backup runtime`.
+- Host GSAP dan ScrollTrigger secara local di `assets/vendor/` supaya GUI tidak bergantung kepada CDN.
+- Tukar preview image produk kepada WebP ringan.
+- Tambah `npm run qa:smoke` untuk semakan auth, CORS, CSRF, generate story fallback, Shopee cookie config, dan backup.
+- Kemas mobile navigation supaya kandungan utama tidak jatuh terlalu jauh di skrin kecil.
 
 ### v0.9.5
 

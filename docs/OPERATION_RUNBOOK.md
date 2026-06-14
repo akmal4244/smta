@@ -16,6 +16,7 @@ Jalankan semakan asas:
 
 ```bash
 npm run check
+npm run qa:smoke
 ```
 
 Semak JSON utama:
@@ -38,7 +39,7 @@ npm run deploy:xampp
 
 ## Semak AI Server
 
-Health endpoint patut pulang `ok:true` dan `hasKey:true` jika DeepSeek key tersedia.
+Health endpoint patut pulang `ok:true`. Jika belum login, maklumat sensitif seperti `hasKey` tidak dipaparkan.
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8788/api/health -TimeoutSec 10
@@ -57,6 +58,34 @@ Jika mahu Product Intelligence cuba endpoint Shopee yang memerlukan sesi login, 
 - Fail private `work/private/shopee-cookie.txt`.
 
 Jangan commit cookie Shopee. Jika `hasShopeeCookie:false`, ThreadsMe masih akan cuba redirect metadata + DeepSeek tetapi mungkin label produk sebagai `story_inferred`.
+
+## Admin Auth dan CORS
+
+Default production:
+
+- `THREADSME_AUTH_REQUIRED=true`.
+- Login pertama melalui GUI akan setup password admin dan simpan hash di `work/private/admin-auth.json`.
+- Alternatif: set `THREADSME_ADMIN_PASSWORD` melalui env/server config.
+- Semua API selain `health` dan auth endpoint memerlukan session admin.
+- Semua `POST` protected memerlukan CSRF token session.
+- `THREADSME_ALLOWED_ORIGINS` mesti mengandungi domain GUI sebenar sahaja.
+
+Contoh local:
+
+```text
+THREADSME_ALLOWED_ORIGINS=http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,http://localhost:8791,http://127.0.0.1:8791
+```
+
+Jika deploy ke hosting/domain, tambah domain production dan jangan guna `*`.
+
+Jika lupa password file-based semasa local dev, hentikan server dan reset fail private berikut secara manual:
+
+```text
+work/private/admin-auth.json
+work/private/admin-sessions.json
+```
+
+Jangan commit dua fail ini.
 
 ## Workflow Jana Story Produk
 
@@ -96,6 +125,21 @@ work/runtime/publish-log.json
 
 Fail root `threads_flexi_marble_schedule.json`, `status.json` dan `story-runs.json` kekal sebagai snapshot/fallback static. Jangan risau jika `work/runtime/` berubah ketika server hidup; folder itu diabaikan git.
 
+## Backup Runtime
+
+Backup runtime boleh dibuat melalui:
+
+- GUI: `Tindakan Saya` -> `Backup runtime`.
+- API protected: `POST /api/runtime-backup/snapshot`.
+
+Fail backup disimpan di:
+
+```text
+work/backups/
+```
+
+Backup mengandungi jadual, status, story runs, config publisher yang disanitasi, dan indikator sama ada key/token/cookie tersimpan. Backup tidak menyimpan nilai secret sebenar.
+
 ## Status Queue
 
 - `Pending`: queue aktif.
@@ -122,11 +166,13 @@ Default publisher mesti kekal `Dry-run`.
 
 Sebelum live:
 
+- Login admin sah.
 - Threads User ID diisi.
 - Threads access token sah.
 - `Dry-run` telah diuji.
 - Siri due sudah jelas.
 - User faham tindakan live boleh menghantar post public.
+- Runtime backup sudah dibuat sebelum automation besar.
 
 Token boleh disimpan melalui GUI Publisher atau env `THREADS_ACCESS_TOKEN`.
 
@@ -134,6 +180,7 @@ Token boleh disimpan melalui GUI Publisher atau env `THREADS_ACCESS_TOKEN`.
 
 ```bash
 npm run check
+npm run qa:smoke
 git diff --check
 ```
 

@@ -26,7 +26,8 @@ function resolveRequest(url) {
   const appPath = cleanPath.replace(/^\/threadsme(?=\/|$)/i, "") || "/";
   const normalized = appPath.endsWith("/") ? `${appPath}index.html` : appPath;
   const target = path.resolve(root, `.${normalized}`);
-  if (!target.startsWith(root)) return null;
+  const relative = path.relative(root, target);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
   return target;
 }
 
@@ -45,6 +46,8 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, {
       "content-type": mime.get(path.extname(filePath)) || "application/octet-stream",
       "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
+      "referrer-policy": "same-origin",
     });
     res.end(body);
   } catch {

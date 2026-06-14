@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { access, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = process.env.THREADSME_WORKSPACE_ROOT || here;
@@ -18,8 +19,11 @@ const scheduleFile = process.env.THREADSME_SCHEDULE_FILE || path.join(runtimeRoo
 const storyRunsFile = process.env.THREADSME_STORY_RUNS_FILE || path.join(runtimeRoot, "story-runs.json");
 const statusFile = process.env.THREADSME_STATUS_FILE || path.join(runtimeRoot, "status.json");
 const publishLogFile = process.env.THREADSME_PUBLISH_LOG_FILE || path.join(runtimeRoot, "publish-log.json");
+const backupRoot = process.env.THREADSME_BACKUP_DIR || path.join(workspaceRoot, "work", "backups");
 const threadsConfigFile = path.join(workspaceRoot, "work", "private", "threads-config.json");
 const threadsTokenFile = path.join(workspaceRoot, "work", "private", "threads-access-token.txt");
+const adminAuthFile = path.join(workspaceRoot, "work", "private", "admin-auth.json");
+const adminSessionFile = path.join(workspaceRoot, "work", "private", "admin-sessions.json");
 const port = Number(process.env.THREADSME_AI_PORT || process.argv[2] || 8788);
 const host = "127.0.0.1";
 const deepseekUrl = "https://api.deepseek.com/chat/completions";
@@ -29,6 +33,17 @@ const threadsApiDailyPublishLimit = 250;
 const maxPostingPerDay = 25;
 const autoProductResolveLimit = Math.max(1, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_LIMIT || 8), 25));
 const autoProductMinimumConfidence = Math.max(40, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_CONFIDENCE || 62), 95));
+const authRequired = process.env.THREADSME_AUTH_REQUIRED !== "false";
+const allowedOrigins = new Set(
+  String(
+    process.env.THREADSME_ALLOWED_ORIGINS ||
+      "http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,http://localhost:8791,http://127.0.0.1:8791",
+  )
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
+const adminSessionTtlMs = Math.max(15, Number(process.env.THREADSME_SESSION_HOURS || 24)) * 60 * 60 * 1000;
 const postingTimePresets = {
   1: ["10:00"],
   3: ["09:30", "12:30", "20:30"],
@@ -176,6 +191,190 @@ function sanitizeThreadsConfig(config, hasToken) {
     maxDuePerSync: config.maxDuePerSync,
     liveReady: Boolean(config.enabled && config.dryRun === false && config.threadsUserId && hasToken),
   };
+}
+
+class HttpError extends Error {
+  constructor(status, message, options = {}) {
+    super(message);
+    this.status = status;
+    this.expose = options.expose !== false;
+  }
+}
+
+function badRequest(message) {
+  throw new HttpError(400, message);
+}
+
+function unauthorized(message = "Sesi admin diperlukan.") {
+  throw new HttpError(401, message);
+}
+
+function forbidden(message = "Akses tidak dibenarkan.") {
+  throw new HttpError(403, message);
+}
+
+function parseCookies(req) {
+  const header = String(req.headers.cookie || "");
+  const cookies = {};
+  for (const part of header.split(";")) {
+    const [rawKey, ...rawValue] = part.trim().split("=");
+    if (!rawKey) continue;
+    cookies[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue.join("=") || "");
+  }
+  return cookies;
+}
+
+function hashPassword(password, salt) {
+  return pbkdf2Sync(String(password), salt, 120_000, 32, "sha256").toString("hex");
+}
+
+function safeCompareHex(a, b) {
+  const left = Buffer.from(String(a || ""), "hex");
+  const right = Buffer.from(String(b || ""), "hex");
+  return left.length === right.length && left.length > 0 && timingSafeEqual(left, right);
+}
+
+async function readAdminAuth() {
+  const envPassword = String(process.env.THREADSME_ADMIN_PASSWORD || "").trim();
+  if (envPassword) return { source: "env", hasPassword: true };
+  const data = await readJsonFile(adminAuthFile, null);
+  return data?.passwordHash && data?.salt ? { source: "file", ...data, hasPassword: true } : { source: "none", hasPassword: false };
+}
+
+async function setupAdminPassword(password) {
+  const clean = String(password || "");
+  if (clean.length < 10) badRequest("Kata laluan admin mesti sekurang-kurangnya 10 aksara.");
+  const current = await readAdminAuth();
+  if (current.hasPassword) throw new HttpError(409, "Admin password sudah diset. Guna login atau reset fail private jika perlu.");
+  const salt = randomBytes(16).toString("hex");
+  const payload = {
+    version: 1,
+    salt,
+    passwordHash: hashPassword(clean, salt),
+    createdAt: `${malaysiaNow()} GMT+8`,
+  };
+  await mkdir(path.dirname(adminAuthFile), { recursive: true });
+  await writeJsonFile(adminAuthFile, payload);
+  return payload;
+}
+
+async function verifyAdminPassword(password) {
+  const auth = await readAdminAuth();
+  if (!auth.hasPassword) badRequest("Admin password belum diset.");
+  const clean = String(password || "");
+  if (auth.source === "env") {
+    const expectedHash = hashPassword(String(process.env.THREADSME_ADMIN_PASSWORD || ""), "threadsme-env-password");
+    const actualHash = hashPassword(clean, "threadsme-env-password");
+    return safeCompareHex(actualHash, expectedHash);
+  }
+  return safeCompareHex(hashPassword(clean, auth.salt), auth.passwordHash);
+}
+
+async function readAdminSessions() {
+  const data = await readJsonFile(adminSessionFile, { sessions: [] });
+  const sessions = Array.isArray(data.sessions) ? data.sessions : [];
+  const now = Date.now();
+  return sessions.filter((session) => Number(session.expiresAt || 0) > now);
+}
+
+async function writeAdminSessions(sessions) {
+  await mkdir(path.dirname(adminSessionFile), { recursive: true });
+  await writeJsonFile(adminSessionFile, { sessions });
+}
+
+async function createAdminSession() {
+  const sessions = await readAdminSessions();
+  const session = {
+    token: randomBytes(32).toString("hex"),
+    csrfToken: randomBytes(24).toString("hex"),
+    createdAt: Date.now(),
+    expiresAt: Date.now() + adminSessionTtlMs,
+  };
+  sessions.push(session);
+  await writeAdminSessions(sessions.slice(-20));
+  return session;
+}
+
+async function getAdminSession(req) {
+  if (!authRequired) return { authenticated: true, csrfToken: "" };
+  const token = parseCookies(req).tm_session;
+  if (!token) return null;
+  const sessions = await readAdminSessions();
+  const session = sessions.find((item) => item.token === token);
+  return session || null;
+}
+
+async function destroyAdminSession(req) {
+  const token = parseCookies(req).tm_session;
+  if (!token) return;
+  const sessions = await readAdminSessions();
+  await writeAdminSessions(sessions.filter((session) => session.token !== token));
+}
+
+function authCookie(session) {
+  const maxAge = Math.floor(adminSessionTtlMs / 1000);
+  return `tm_session=${encodeURIComponent(session.token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+}
+
+function expiredAuthCookie() {
+  return "tm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0";
+}
+
+function applyCors(req, res) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  if (!allowedOrigins.has(origin)) return false;
+  res.setHeader("access-control-allow-origin", origin);
+  res.setHeader("access-control-allow-credentials", "true");
+  res.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
+  res.setHeader("access-control-allow-headers", "content-type,x-threadsme-csrf");
+  res.setHeader("vary", "Origin");
+  return true;
+}
+
+function isPublicRoute(method, pathname) {
+  if (method === "OPTIONS") return true;
+  if (method === "GET" && pathname === "/api/health") return true;
+  if (method === "GET" && pathname === "/api/auth/status") return true;
+  if (method === "POST" && ["/api/auth/login", "/api/auth/setup", "/api/auth/logout"].includes(pathname)) return true;
+  return false;
+}
+
+async function requireAdmin(req, pathname) {
+  if (!authRequired || isPublicRoute(req.method, pathname)) return { authenticated: true, csrfToken: "" };
+  const session = await getAdminSession(req);
+  if (!session) unauthorized();
+  if (req.method !== "GET") {
+    const csrf = String(req.headers["x-threadsme-csrf"] || "");
+    if (!csrf || csrf !== session.csrfToken) forbidden("CSRF token tidak sah. Sila login semula.");
+  }
+  return session;
+}
+
+async function getAuthStatus(req) {
+  const auth = await readAdminAuth();
+  const session = await getAdminSession(req);
+  return {
+    authRequired,
+    setupRequired: authRequired && !auth.hasPassword,
+    authenticated: !authRequired || Boolean(session),
+    csrfToken: session?.csrfToken || "",
+    source: auth.source,
+    sessionExpiresAt: session?.expiresAt || null,
+  };
+}
+
+async function handleAuthSetup(input) {
+  await setupAdminPassword(input.password);
+  const session = await createAdminSession();
+  return { session, status: await getAuthStatus({ headers: { cookie: `tm_session=${session.token}` } }) };
+}
+
+async function handleAuthLogin(input) {
+  const valid = await verifyAdminPassword(input.password);
+  if (!valid) unauthorized("Kata laluan admin tidak sah.");
+  const session = await createAdminSession();
+  return { session, status: await getAuthStatus({ headers: { cookie: `tm_session=${session.token}` } }) };
 }
 
 function sleep(ms) {
@@ -632,7 +831,7 @@ async function publishTextToThreads({ config, token, text, replyToId }) {
 
 async function publishThreadSeries(number, post, config) {
   const series = getThreadSeries(post);
-  if (series.some((item) => !item.text)) throw new Error(`Siri ${number} tidak lengkap.`);
+  if (series.some((item) => !item.text)) throw new HttpError(400, `Siri ${number} tidak lengkap.`);
 
   if (config.dryRun) {
     return {
@@ -648,8 +847,8 @@ async function publishThreadSeries(number, post, config) {
   }
 
   const token = await getThreadsAccessToken(config);
-  if (!config.threadsUserId) throw new Error("Threads User ID belum diset.");
-  if (!token) throw new Error("Threads access token belum diset.");
+  if (!config.threadsUserId) throw new HttpError(400, "Threads User ID belum diset.");
+  if (!token) throw new HttpError(400, "Threads access token belum diset.");
 
   const main = await publishTextToThreads({ config, token, text: series[0].text });
   const reply1 = await publishTextToThreads({
@@ -742,7 +941,7 @@ async function publishScheduleNumber(number, { force = false, config = null, has
   const publisherConfig = sanitizeThreadsConfig(threadsConfig, tokenReady);
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
   const post = posts[number - 1];
-  if (!post) throw new Error(`Siri ${number} tidak wujud dalam jadual.`);
+  if (!post) throw new HttpError(404, `Siri ${number} tidak wujud dalam jadual.`);
   if (post.qualityStatus === "review") {
     return { skipped: true, reason: "Siri masih Perlu Semak dan tidak akan dipublish sehingga lulus Quality Gate.", number };
   }
@@ -756,7 +955,7 @@ async function publishScheduleNumber(number, { force = false, config = null, has
     return { skipped: true, reason: "Siri belum berada dalam Pending scheduled.", number };
   }
   if (!threadsConfig.dryRun && (!publisherConfig.liveReady)) {
-    throw new Error("Threads API belum live-ready. Semak User ID, access token, dan mode live.");
+    throw new HttpError(403, "Threads API belum live-ready. Semak User ID, access token, dan mode live.");
   }
 
   const startedAt = `${malaysiaNow()} GMT+8`;
@@ -991,13 +1190,11 @@ async function scheduleGeneratedVersions(input, result, runId) {
   };
 }
 
-function sendJson(res, status, body) {
+function sendJson(res, status, body, headers = {}) {
   res.writeHead(status, {
     "content-type": "application/json; charset=utf-8",
-    "access-control-allow-origin": "*",
-    "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type",
     "cache-control": "no-store",
+    ...headers,
   });
   res.end(JSON.stringify(body));
 }
@@ -1006,9 +1203,13 @@ async function readBody(req) {
   let body = "";
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > 1_200_000) throw new Error("Request too large");
+    if (body.length > 1_200_000) throw new HttpError(413, "Request terlalu besar.");
   }
-  return body ? JSON.parse(body) : {};
+  try {
+    return body ? JSON.parse(body) : {};
+  } catch {
+    throw new HttpError(400, "JSON request tidak sah.");
+  }
 }
 
 function buildPrompt(input) {
@@ -1325,7 +1526,7 @@ function buildFallbackStories(input, affiliateLink) {
 async function generateStory(input) {
   const productTitle = String(input.productTitle || "").trim();
   if (!productTitle) {
-    throw new Error("Tajuk produk wajib. Masukkan nama produk Shopee supaya story tidak lari daripada produk sebenar.");
+    badRequest("Tajuk produk wajib. Masukkan nama produk Shopee supaya story tidak lari daripada produk sebenar.");
   }
   const prompt = buildPrompt(input);
   const affiliateLink = String(input.affiliateLink || "https://s.shopee.com.my/7VDqSOoKf3").trim();
@@ -1443,7 +1644,7 @@ async function saveStoryRun(input, result) {
 
 async function updateStoryRunStatus(versionId, status) {
   const allowed = new Set(["pending", "passed", "failed", "review"]);
-  if (!allowed.has(status)) throw new Error("Invalid status");
+  if (!allowed.has(status)) badRequest("Status tidak sah.");
   const runs = await readStoryRuns();
   const statusData = await readJsonFile(statusFile, {});
   let scheduleNumber = null;
@@ -1458,7 +1659,7 @@ async function updateStoryRunStatus(versionId, status) {
       }
     }
   }
-  if (!changed) throw new Error("Version not found");
+  if (!changed) throw new HttpError(404, "Versi story tidak ditemui.");
 
   let updatedStatus = statusData;
   if (scheduleNumber) {
@@ -1842,7 +2043,7 @@ async function autoCompleteStoryProductInput(input) {
   if (String(input.productTitle || "").trim()) return input;
   const intel = await inspectProductIntel({ ...input, useAi: true });
   if (!intel.autoResolvable || !intel.productTitle) {
-    throw new Error("Tajuk produk belum cukup jelas daripada link Shopee. Isi tajuk produk sebenar supaya story tidak lari.");
+    badRequest("Tajuk produk belum cukup jelas daripada link Shopee. Isi tajuk produk sebenar supaya story tidak lari.");
   }
   return {
     ...input,
@@ -1999,9 +2200,9 @@ async function runAutoProductAudit() {
 
 async function updateProductAudit(input) {
   const numbers = parseNumberList(input.numbers);
-  if (!numbers.length) throw new Error("Pilih nombor siri untuk diaudit.");
+  if (!numbers.length) badRequest("Pilih nombor siri untuk diaudit.");
   const productTitle = String(input.productTitle || "").trim();
-  if (!productTitle) throw new Error("Tajuk produk wajib untuk audit.");
+  if (!productTitle) badRequest("Tajuk produk wajib untuk audit.");
   const productCategory = String(input.productCategory || "").trim();
   const affiliateLink = String(input.affiliateLink || "").trim();
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
@@ -2057,9 +2258,9 @@ async function updateProductAudit(input) {
 
 async function regenerateProductAudit(input) {
   const numbers = parseNumberList(input.numbers);
-  if (!numbers.length) throw new Error("Pilih nombor siri untuk regenerate.");
+  if (!numbers.length) badRequest("Pilih nombor siri untuk regenerate.");
   const productTitle = String(input.productTitle || "").trim();
-  if (!productTitle) throw new Error("Tajuk produk wajib untuk regenerate.");
+  if (!productTitle) badRequest("Tajuk produk wajib untuk regenerate.");
   const productCategory = String(input.productCategory || "").trim();
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
@@ -2704,6 +2905,68 @@ async function getPublisherStatus() {
   };
 }
 
+async function getShopeeCookieStatus() {
+  const hasCookie = Boolean(await getShopeeCookie());
+  return {
+    hasCookie,
+    source: process.env.SHOPEE_COOKIE ? "env" : hasCookie ? "file" : "none",
+    file: shopeeCookieFile.replace(workspaceRoot, "").replace(/^[/\\]/, ""),
+  };
+}
+
+async function updateShopeeCookieConfig(input) {
+  const cookie = String(input.cookie || "").trim();
+  await mkdir(path.dirname(shopeeCookieFile), { recursive: true });
+  await writeFile(shopeeCookieFile, cookie, "utf8");
+  return getShopeeCookieStatus();
+}
+
+async function buildRuntimeBackup() {
+  const [scheduleData, statusData, runs, publisher, shopee] = await Promise.all([
+    readJsonFile(scheduleFile, { posts: [] }),
+    readJsonFile(statusFile, {}),
+    readStoryRuns(),
+    getPublisherStatus(),
+    getShopeeCookieStatus(),
+  ]);
+  return {
+    type: "threadsme-runtime-backup",
+    version: "0.9.6",
+    createdAt: `${malaysiaNow()} GMT+8`,
+    files: {
+      schedule: path.relative(workspaceRoot, scheduleFile),
+      status: path.relative(workspaceRoot, statusFile),
+      storyRuns: path.relative(workspaceRoot, storyRunsFile),
+    },
+    schedule: scheduleData,
+    status: statusData,
+    storyRuns: runs,
+    publisher: {
+      config: publisher.config,
+      dueNumbers: publisher.dueNumbers,
+      lastEntries: publisher.lastEntries,
+    },
+    privateState: {
+      deepseekKeyStored: Boolean(await getApiKey().catch(() => "")),
+      shopeeCookieStored: shopee.hasCookie,
+      threadsTokenStored: Boolean(publisher.config?.hasToken),
+    },
+  };
+}
+
+async function saveRuntimeBackup() {
+  const backup = await buildRuntimeBackup();
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const filePath = path.join(backupRoot, `threadsme-backup-${stamp}.json`);
+  await mkdir(backupRoot, { recursive: true });
+  await writeJsonFile(filePath, backup);
+  return {
+    saved: true,
+    file: path.relative(workspaceRoot, filePath),
+    backup,
+  };
+}
+
 async function updatePublisherConfig(input) {
   const current = await readThreadsConfig();
   const next = {
@@ -2739,12 +3002,20 @@ async function updatePublisherConfig(input) {
 
 const server = createServer(async (req, res) => {
   try {
+    const corsAllowed = applyCors(req, res);
+    if (!corsAllowed) {
+      sendJson(res, 403, { ok: false, error: "Origin tidak dibenarkan." });
+      return;
+    }
+
     if (req.method === "OPTIONS") {
       sendJson(res, 204, {});
       return;
     }
 
     const url = new URL(req.url || "/", `http://${host}:${port}`);
+    await requireAdmin(req, url.pathname);
+
     if (req.method === "GET" && url.pathname === "/api/health") {
       let hasKey = false;
       try {
@@ -2752,7 +3023,41 @@ const server = createServer(async (req, res) => {
       } catch {
         hasKey = false;
       }
-      sendJson(res, 200, { ok: true, hasKey, model: "deepseek-v4-flash", hasShopeeCookie: Boolean(await getShopeeCookie()) });
+      const session = await getAdminSession(req);
+      const authenticated = !authRequired || Boolean(session);
+      sendJson(res, 200, {
+        ok: true,
+        authRequired,
+        authenticated,
+        hasKey: authenticated ? hasKey : undefined,
+        model: "deepseek-v4-flash",
+        hasShopeeCookie: authenticated ? Boolean(await getShopeeCookie()) : undefined,
+      });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/auth/status") {
+      sendJson(res, 200, { ok: true, ...(await getAuthStatus(req)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/auth/setup") {
+      const input = await readBody(req);
+      const { session, status } = await handleAuthSetup(input);
+      sendJson(res, 200, { ok: true, ...status }, { "set-cookie": authCookie(session) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/auth/login") {
+      const input = await readBody(req);
+      const { session, status } = await handleAuthLogin(input);
+      sendJson(res, 200, { ok: true, ...status }, { "set-cookie": authCookie(session) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/auth/logout") {
+      await destroyAdminSession(req);
+      sendJson(res, 200, { ok: true, authRequired, authenticated: false }, { "set-cookie": expiredAuthCookie() });
       return;
     }
 
@@ -2821,6 +3126,16 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/shopee-cookie/status") {
+      sendJson(res, 200, { ok: true, ...(await getShopeeCookieStatus()) });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/runtime-backup") {
+      sendJson(res, 200, { ok: true, backup: await buildRuntimeBackup() });
+      return;
+    }
+
     if (req.method === "POST" && url.pathname === "/api/automation/sync") {
       const result = await runThreadsMeAutomation();
       sendJson(res, 200, { ok: true, ...result });
@@ -2830,6 +3145,17 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/threads-publisher/config") {
       const input = await readBody(req);
       sendJson(res, 200, { ok: true, ...(await updatePublisherConfig(input)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/shopee-cookie/config") {
+      const input = await readBody(req);
+      sendJson(res, 200, { ok: true, ...(await updateShopeeCookieConfig(input)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/runtime-backup/snapshot") {
+      sendJson(res, 200, { ok: true, ...(await saveRuntimeBackup()) });
       return;
     }
 
@@ -2846,7 +3172,7 @@ const server = createServer(async (req, res) => {
     if (req.method === "POST" && url.pathname === "/api/threads-publisher/publish-one") {
       const input = await readBody(req);
       const number = Number(input.number);
-      if (!Number.isInteger(number) || number < 1) throw new Error("Nombor siri tidak sah.");
+      if (!Number.isInteger(number) || number < 1) badRequest("Nombor siri tidak sah.");
       const result = await publishScheduleNumber(number, { force: Boolean(input.force) });
       sendJson(res, 200, { ok: result.ok !== false, result, ...(await getPublisherStatus()) });
       return;
@@ -2892,7 +3218,12 @@ const server = createServer(async (req, res) => {
 
     sendJson(res, 404, { ok: false, error: "Not found" });
   } catch (error) {
-    sendJson(res, 500, { ok: false, error: error.message });
+    const status = error instanceof HttpError ? error.status : 500;
+    const message = error instanceof HttpError && error.expose ? error.message : "Ralat server dalaman.";
+    if (!(error instanceof HttpError)) {
+      console.error(`[ThreadsMe API] ${error.stack || error.message}`);
+    }
+    sendJson(res, status, { ok: false, error: message });
   }
 });
 

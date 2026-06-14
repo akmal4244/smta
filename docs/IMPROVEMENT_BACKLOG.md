@@ -4,7 +4,7 @@ Fail ini menyimpan cadangan tambah baik yang sudah dikenal pasti supaya kerja se
 
 ## P0 - Kualiti Produk dan Story
 
-Status v0.9.5: asas `Auto Audit Produk`, `Tindakan Saya`, `Product Audit`, preview ayat semasa, `Quality Gate`, `Product Intelligence`, auto product resolver Shopee/DeepSeek, `Automation Health`, `Preview Netizen`, runtime `work/runtime/` termasuk schedule aktif, dan render DOM selamat sudah dibina. Backlog ini kini fokus kepada penambahbaikan selepas modul asas stabil.
+Status v0.9.6: asas `Auto Audit Produk`, `Tindakan Saya`, `Product Audit`, preview ayat semasa, `Quality Gate`, `Product Intelligence`, auto product resolver Shopee/DeepSeek, `Automation Health`, `Preview Netizen`, runtime `work/runtime/`, render DOM selamat, admin auth, locked CORS, CSRF, runtime backup, local GSAP, WebP preview, dan smoke test sudah dibina. Backlog ini kini fokus kepada penambahbaikan selepas modul asas stabil.
 
 ### Product Audit
 
@@ -47,7 +47,7 @@ Masalah:
 
 Cadangan:
 
-- Tambah pilihan cookie/login Shopee private jika mahu baca endpoint produk yang Shopee block untuk request biasa.
+- Tambah wizard cookie/login Shopee yang lebih mesra daripada textarea private semasa.
 - Tambah cache product intel runtime yang tahan restart supaya semakan link sama tidak ulang network call.
 - Paparkan beberapa calon tajuk produk untuk user pilih.
 
@@ -66,16 +66,16 @@ Cadangan:
 
 ## P2 - Data dan Repo Hygiene
 
-### Pisahkan Runtime Data
+### Runtime Data dan Backup
 
 Masalah:
 
-- `status.json` berubah setiap 60 saat bila automation hidup.
-- Git worktree jadi dirty walaupun sistem normal.
+- Backup runtime sudah ada, tetapi restore/import belum ada.
+- Log runtime boleh membesar jika automation berjalan lama.
 
 Cadangan:
 
-- Tambah export/import backup melalui GUI.
+- Tambah import/restore backup melalui GUI dengan confirmation.
 - Tambah button `Compact runtime` untuk archive log lama.
 
 ## P2 - Dashboard Operasi
@@ -109,7 +109,11 @@ Cadangan:
 
 ### Mobile Navigation
 
-Cadangan:
+Status:
+
+- v0.9.6 sudah tukar menu mobile kepada horizontal compact nav supaya content utama tidak turun terlalu jauh.
+
+Cadangan seterusnya:
 
 - Pada skrin kecil, sidebar boleh jadi collapsible atau bottom nav.
 - Matlamat: lebih ruang untuk form Jana Story dan Jadual Threads.

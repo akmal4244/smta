@@ -20,6 +20,24 @@
   </head>
   <body>
     <a class="skip-link" href="#mainContent">Langkau ke kandungan utama</a>
+    <section id="authGate" class="auth-gate" aria-label="Login admin ThreadsMe" hidden>
+      <article class="auth-card">
+        <span class="brand-mark">
+          <img src="./assets/threadsme-logo.svg?v=4" alt="Logo ThreadsMe" />
+        </span>
+        <div>
+          <p class="eyebrow">Admin Access</p>
+          <h1 id="authTitle">Login ThreadsMe</h1>
+          <p id="authHelp">Masukkan kata laluan admin untuk akses dashboard dan API automation.</p>
+        </div>
+        <label class="field-stack">
+          <span>Kata laluan admin</span>
+          <input id="adminPassword" type="password" autocomplete="current-password" placeholder="Minimum 10 aksara untuk setup pertama" />
+        </label>
+        <button id="authSubmitButton" type="button">Masuk</button>
+        <p id="authStatus" class="auth-status">Menyemak status keselamatan...</p>
+      </article>
+    </section>
     <div class="system-shell">
       <aside class="side-menu" aria-label="Menu ThreadsMe">
         <div class="brand-block">
@@ -76,6 +94,7 @@
           <span>Sistem Dibangunkan Sepenuhnya Oleh</span>
           <strong>Akmal Marvis</strong>
           <span>&copy; <span id="creditYear">2026</span></span>
+          <button id="logoutButton" class="logout-button" type="button" hidden>Logout</button>
         </footer>
       </aside>
 
@@ -226,6 +245,7 @@
               <div id="autoAuditGuide" class="auto-audit-guide"></div>
               <div class="action-center-actions stacked">
                 <button id="runAutoAuditPageButton" type="button">Run auto audit sekarang</button>
+                <button id="downloadBackupButton" type="button">Backup runtime</button>
                 <button id="openAuditFromActionsButton" type="button">Buka Audit Produk</button>
               </div>
             </aside>
@@ -330,7 +350,7 @@
 
               <div class="story-output-panel">
                 <div id="imagePreview" class="image-preview" tabindex="0">
-                  <img src="./assets/flexi-marble-sheet.png" alt="Gambar produk Flexi Marble Sheet" />
+                    <img src="./assets/flexi-marble-sheet.webp" alt="Gambar produk Flexi Marble Sheet" loading="lazy" />
                   <span class="preview-caption">Gambar produk semasa</span>
                 </div>
                 <p class="helper-text">Klik kotak gambar untuk paste imej dari clipboard, atau guna upload/link gambar.</p>
@@ -647,6 +667,26 @@
 
             <article class="publisher-panel">
               <div class="panel-heading">
+                <div>
+                  <h2>Shopee Product Intel</h2>
+                  <p>Simpan cookie Shopee secara private jika mahu ThreadsMe cuba baca detail produk dengan sesi login.</p>
+                </div>
+                <span id="shopeeCookieStatus">Belum semak</span>
+              </div>
+              <div class="publisher-form">
+                <label class="field-stack">
+                  <span>Cookie Shopee private</span>
+                  <textarea id="shopeeCookieInput" placeholder="Paste cookie Shopee jika mahu aktifkan link-verified. Kosongkan untuk clear."></textarea>
+                </label>
+                <div class="publisher-actions">
+                  <button id="saveShopeeCookieButton" type="button">Simpan cookie</button>
+                  <button id="clearShopeeCookieButton" type="button">Clear cookie</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="publisher-panel">
+              <div class="panel-heading">
                 <h2>Log publisher</h2>
                 <span id="publisherLogNote">Tiada log</span>
               </div>
@@ -657,8 +697,8 @@
       </main>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-    <script src="./app.js?v=17"></script>
+    <script src="./assets/vendor/gsap.min.js?v=1"></script>
+    <script src="./assets/vendor/ScrollTrigger.min.js?v=1"></script>
+    <script src="./app.js?v=18"></script>
   </body>
 </html>
