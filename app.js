@@ -63,6 +63,9 @@ const els = {
   authSubmitButton: document.querySelector("#authSubmitButton"),
   authStatus: document.querySelector("#authStatus"),
   logoutButton: document.querySelector("#logoutButton"),
+  logoutConfirmModal: document.querySelector("#logoutConfirmModal"),
+  cancelLogoutButton: document.querySelector("#cancelLogoutButton"),
+  confirmLogoutButton: document.querySelector("#confirmLogoutButton"),
   systemStatus: document.querySelector("#systemStatus"),
   systemNote: document.querySelector("#systemNote"),
   totalPosts: document.querySelector("#totalPosts"),
@@ -413,9 +416,22 @@ async function submitAuth() {
   }
 }
 
-async function logoutAdmin() {
-  const confirmed = window.confirm("Anda pasti mahu log keluar daripada ThreadsMe?");
-  if (!confirmed) return;
+function closeLogoutConfirm() {
+  if (!els.logoutConfirmModal) return;
+  els.logoutConfirmModal.hidden = true;
+}
+
+function requestLogoutConfirmation() {
+  if (!els.logoutConfirmModal) {
+    performLogout();
+    return;
+  }
+  els.logoutConfirmModal.hidden = false;
+  window.setTimeout(() => els.cancelLogoutButton?.focus(), 0);
+}
+
+async function performLogout() {
+  closeLogoutConfirm();
   try {
     await apiFetch("/api/auth/logout", { method: "POST", cache: "no-store" });
   } catch {
@@ -448,7 +464,17 @@ function bindAuthGate() {
       clearAuthCredentialFields();
     }
   });
-  els.logoutButton?.addEventListener("click", logoutAdmin);
+  els.logoutButton?.addEventListener("click", requestLogoutConfirmation);
+  els.cancelLogoutButton?.addEventListener("click", closeLogoutConfirm);
+  els.confirmLogoutButton?.addEventListener("click", performLogout);
+  els.logoutConfirmModal?.addEventListener("click", (event) => {
+    if (event.target === els.logoutConfirmModal) closeLogoutConfirm();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && els.logoutConfirmModal && !els.logoutConfirmModal.hidden) {
+      closeLogoutConfirm();
+    }
+  });
 }
 
 async function syncAutomationStatus() {

@@ -16,7 +16,7 @@
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="./assets/threadsme-favicon.svg?v=4" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=18" />
+    <link rel="stylesheet" href="./styles.css?v=19" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">Langkau ke kandungan utama</a>
@@ -44,6 +44,20 @@
         </label>
         <button id="authSubmitButton" type="button">Masuk</button>
         <p id="authStatus" class="auth-status">Menyemak status keselamatan...</p>
+      </article>
+    </section>
+    <section id="logoutConfirmModal" class="confirm-modal" aria-labelledby="logoutConfirmTitle" aria-modal="true" role="dialog" hidden>
+      <article class="confirm-card">
+        <span class="confirm-mark" aria-hidden="true">!</span>
+        <div>
+          <p class="eyebrow">Pengesahan</p>
+          <h2 id="logoutConfirmTitle">Log keluar ThreadsMe?</h2>
+          <p>Pastikan semua kerja automasi sudah disimpan. Anda boleh masuk semula selepas ini.</p>
+        </div>
+        <div class="confirm-actions">
+          <button id="cancelLogoutButton" class="ghost-button" type="button">Batal</button>
+          <button id="confirmLogoutButton" class="danger-button" type="button">Ya, log keluar</button>
+        </div>
       </article>
     </section>
     <div class="system-shell">
@@ -707,6 +721,6 @@
 
     <script src="./assets/vendor/gsap.min.js?v=1"></script>
     <script src="./assets/vendor/ScrollTrigger.min.js?v=1"></script>
-    <script src="./app.js?v=22"></script>
+    <script src="./app.js?v=23"></script>
   </body>
 </html>
