@@ -220,7 +220,7 @@
               <div class="panel-heading compact-heading">
                 <div>
                   <h2>Auto Audit Produk</h2>
-                  <p>Semakan ini berjalan dengan automation queue dan boleh dipaksa bila-bila masa.</p>
+                  <p>ThreadsMe cuba isi produk daripada link Shopee/DeepSeek dahulu, kemudian hanya tahan siri yang belum cukup sah.</p>
                 </div>
               </div>
               <div id="autoAuditGuide" class="auto-audit-guide"></div>
@@ -237,7 +237,7 @@
             <div>
               <p class="eyebrow">AI Story</p>
               <h1>Jana Story Produk</h1>
-              <p class="subtitle">Tajuk produk wajib. Brief boleh ringkas; ThreadsMe akan bina angle, story, dan CTA ikut produk sebenar.</p>
+              <p class="subtitle">Paste link affiliate/gambar, ThreadsMe cuba auto kenal produk dahulu. Tajuk dan kategori masih boleh diedit sebelum jadual.</p>
             </div>
             <span id="aiStatus">Semak server AI</span>
           </header>
@@ -247,11 +247,11 @@
               <div class="story-inputs">
                 <div class="story-two-col">
                   <label class="field-stack">
-                    <span>Tajuk produk wajib</span>
+                    <span>Tajuk produk</span>
                     <input
                       id="productTitle"
                       type="text"
-                      placeholder="Contoh: Sambal Nyet Berapi by Khairulaming 180g"
+                      placeholder="Auto dari Shopee/DeepSeek, atau edit manual"
                       autocomplete="off"
                     />
                   </label>
@@ -269,7 +269,7 @@
                   <span>Brief optional / output asal</span>
                   <textarea
                     id="storyInput"
-                    placeholder="Paste tajuk Shopee, manfaat, target pembaca, masalah harian, atau contoh output lama. Tajuk produk tetap wajib supaya story tak lari."
+                    placeholder="Paste tajuk Shopee, manfaat, target pembaca, masalah harian, atau contoh output lama. Boleh kosong jika link affiliate jelas."
                   ></textarea>
                 </label>
                 <div class="story-two-col">
@@ -313,7 +313,7 @@
                 </label>
                 <div class="product-intel-strip" aria-live="polite">
                   <button id="productIntelButton" type="button">Auto semak produk Shopee</button>
-                  <span id="productIntelNote">Isi link affiliate/gambar, kemudian semak tajuk produk sebelum jana story.</span>
+                  <span id="productIntelNote">ThreadsMe akan cuba isi tajuk/kategori daripada link affiliate, metadata Shopee, dan DeepSeek.</span>
                 </div>
                 <label class="field-stack">
                   <span>Nota gambar / produk optional</span>
@@ -478,7 +478,7 @@
             <div>
               <p class="eyebrow">Product Audit</p>
               <h1>Audit Produk & Quality Gate</h1>
-              <p class="subtitle">Semak siri lama yang tiada tajuk produk, baiki metadata, dan regenerate story supaya copywriting tidak lari daripada produk sebenar.</p>
+              <p class="subtitle">ThreadsMe auto semak link affiliate Shopee dahulu, isi metadata jika yakin, dan tahan hanya siri yang perlu disahkan atau regenerate.</p>
             </div>
             <span id="auditSummaryBadge">Memuatkan audit</span>
           </header>

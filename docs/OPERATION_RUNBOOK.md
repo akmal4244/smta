@@ -51,22 +51,31 @@ Jika `hasKey:false`, semak salah satu pilihan ini:
 
 Jangan commit fail key ke repo.
 
+Jika mahu Product Intelligence cuba endpoint Shopee yang memerlukan sesi login, simpan cookie login sebagai salah satu pilihan berikut:
+
+- Env var `SHOPEE_COOKIE`.
+- Fail private `work/private/shopee-cookie.txt`.
+
+Jangan commit cookie Shopee. Jika `hasShopeeCookie:false`, ThreadsMe masih akan cuba redirect metadata + DeepSeek tetapi mungkin label produk sebagai `story_inferred`.
+
 ## Workflow Jana Story Produk
 
-1. Isi `Tajuk produk wajib`.
-2. Isi `Kategori / kegunaan produk`.
-3. Masukkan link gambar atau upload/paste gambar jika ada.
-4. Isi link affiliate produk.
-5. Klik `Auto semak produk Shopee` jika link/nota belum jelas.
+1. Isi link affiliate produk.
+2. Masukkan link gambar atau upload/paste gambar jika ada.
+3. Klik `Auto semak produk Shopee` jika mahu semak sebelum generate, atau terus klik `Auto cipta & jadualkan`.
+4. ThreadsMe akan cuba isi `Tajuk produk` dan `Kategori / kegunaan produk` daripada link Shopee, metadata, dan DeepSeek.
+5. Edit tajuk/kategori jika mahu override manual.
 6. Pilih jumlah posting sehari, default semasa ialah `25 posting / hari`.
 7. Klik `Auto cipta & jadualkan`.
 8. Semak output dan status di Jadual Threads.
 
-Jika tajuk produk kosong, sistem mesti menolak generate.
+Jika produk masih tidak dapat dikenal pasti dengan yakin, sistem mesti menolak generate dan minta tajuk produk sebenar. Jika produk cuma `story_inferred`, siri ditahan sebagai `Perlu Semak` sehingga disahkan.
 
 ## Product Audit dan Quality Gate
 
 - `Auto Audit Produk` berjalan bersama sync automation 60 saat. Ia re-check metadata, Quality Gate, dan tahan siri yang belum sah produk.
+- Auto Audit cuba auto isi metadata produk daripada link affiliate Shopee sebelum meminta tindakan manual.
+- Auto Audit hanya anggap produk sah jika `link_verified` atau `manual_verified`; `story_inferred` kekal perlu semak.
 - Guna menu `Tindakan Saya` untuk lihat hanya tindakan yang memerlukan input manusia, bukan semua log automation.
 - Siri yang tidak cukup relevan akan ditahan sebagai `Perlu Semak`.
 - `Perlu Semak` tidak patut masuk Pending atau publisher live.

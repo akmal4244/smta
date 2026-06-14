@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | ThreadsMe |
 | Repo slug | threadsme |
-| Versi | v0.9.4 |
+| Versi | v0.9.5 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -39,7 +39,8 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Product Audit untuk baiki siri lama yang tiada tajuk produk atau story tidak relevan.
 - Product Audit memaparkan ayat semasa `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` untuk semakan sebelum regenerate.
 - Quality Gate sebelum story masuk jadual: relevansi produk, hook, BM Malaysia, claim, CTA, dan had 300 aksara.
-- Product Intelligence untuk cuba ekstrak tajuk/kategori daripada link Shopee, affiliate, gambar, atau nota.
+- Product Intelligence untuk cuba ekstrak tajuk/kategori daripada link Shopee, affiliate, gambar, nota, dan DeepSeek.
+- Auto Audit boleh auto isi metadata produk daripada link affiliate Shopee; siri yang cuma `story_inferred` ditahan sehingga disahkan.
 - Automation Health untuk semak AI server, DeepSeek key, Pending 25/25, Blocked, publisher, dan audit issue.
 - Preview Netizen untuk semak rasa manusia sebelum publish.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
@@ -47,16 +48,20 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 
 ## Workflow Produk Tepat
 
-Untuk elak story lari daripada produk sebenar, `Tajuk produk wajib` mesti diisi sebelum jana story. Link gambar Shopee sahaja tidak cukup kerana URL imej selalunya tidak membawa nama produk, dan kadang-kadang imej yang diberi ialah banner promosi, bukan gambar produk.
+Untuk elak story lari daripada produk sebenar, ThreadsMe akan cuba auto kenal produk daripada link affiliate Shopee terlebih dahulu. Sistem akan resolve redirect Shopee, simpan `shopid/itemid`, cuba metadata/API Shopee, kemudian gunakan DeepSeek untuk cadangan kategori dan semakan alignment.
 
-Cadangan input minimum:
+Jika bukti link cukup, metadata ditanda `link_verified` dan boleh terus masuk flow jadual. Jika Shopee block detail atau hanya boleh infer daripada ayat/story, metadata ditanda `story_inferred` dan siri akan ditahan sebagai `Perlu Semak` sehingga disahkan atau regenerated.
 
-- `Tajuk produk wajib`: nama produk sebenar di Shopee, contoh `Sambal Nyet Berapi by Khairulaming 180g`.
+Untuk semakan Shopee yang lebih lengkap, ThreadsMe menyokong cookie login secara private melalui env `SHOPEE_COOKIE` atau fail `work/private/shopee-cookie.txt`. Fail ini tidak di-commit. Jika cookie tiada atau expired, sistem akan fallback kepada metadata redirect + DeepSeek dan label confidence akan diturunkan.
+
+Cadangan input minimum untuk hasil paling tepat:
+
+- `Link affiliate produk`: link CTA wajib yang akan diletakkan di akhir Reply 2.
+- `Tajuk produk`: boleh auto diisi, tetapi boleh diedit manual jika mahu override.
 - `Kategori / kegunaan produk`: fungsi ringkas produk, contoh `sambal ready-to-eat, lauk cepat, penambah selera`.
 - `Nota gambar / produk`: konteks emosi atau situasi, contoh `sesuai untuk nasi panas, telur, ayam goreng, hari malas masak`.
-- `Link affiliate produk`: link CTA wajib yang akan diletakkan di akhir Reply 2.
 
-ThreadsMe akan tolak proses generate jika tajuk produk kosong. Prompt DeepSeek juga dikunci supaya AI tidak tukar kategori produk atau reka manfaat yang tidak berkaitan.
+ThreadsMe hanya akan tolak generate jika produk masih tidak dapat dikenal pasti dengan yakin selepas auto product-intel. Prompt DeepSeek juga dikunci supaya AI tidak tukar kategori produk atau reka manfaat yang tidak berkaitan.
 
 ## Cara Jalankan
 
@@ -216,6 +221,13 @@ ThreadsMe kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas ThreadsMe berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.9.5
+
+- Tambah auto product resolver untuk link affiliate Shopee: resolve redirect, simpan `shopid/itemid`, cuba metadata/API Shopee, dan gunakan DeepSeek untuk product intel berconfidence.
+- Auto Audit kini boleh mengisi `productTitle`, `productCategory`, `productIntelConfidence`, `productIntelEvidence`, dan `productVerified` secara automatik.
+- Siri `story_inferred` atau tidak cukup bukti link akan kekal `Perlu Semak` supaya produk salah tidak terpublish.
+- Jana Story kini cuba `Auto semak produk Shopee` sendiri apabila tajuk produk kosong, kemudian user masih boleh edit metadata sebelum jadual.
 
 ### v0.9.4
 

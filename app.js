@@ -20,6 +20,7 @@ const state = {
   automationHealth: null,
   autoAudit: { summary: null, actions: [] },
   productAudit: { summary: null, items: [] },
+  productIntel: null,
   aiHealth: { ok: false, hasKey: false, model: "" },
   publisher: {
     config: null,
@@ -853,6 +854,12 @@ function renderAutomationHealth() {
       tone: health.deepseek?.hasKey || state.aiHealth.hasKey ? "good" : "warn",
     },
     {
+      label: "Shopee Intel",
+      value: health.shopee?.hasCookie ? "Cookie OK" : "Tanpa cookie",
+      detail: health.shopee?.hasCookie ? "Boleh cuba endpoint login" : "Fallback metadata + DeepSeek",
+      tone: health.shopee?.hasCookie ? "good" : "warn",
+    },
+    {
       label: "Pending aktif",
       value: `${queue.pending ?? state.scheduled.length}/${queue.limit || THREADS_SCHEDULE_LIMIT}`,
       detail: "Queue scheduled aktif",
@@ -867,8 +874,8 @@ function renderAutomationHealth() {
     {
       label: "Quality Gate",
       value: `${audit.reviewCount || 0} semak`,
-      detail: `${audit.missingProductTitleCount || 0} tiada tajuk produk`,
-      tone: (audit.reviewCount || audit.missingProductTitleCount) ? "warn" : "good",
+      detail: `${audit.missingProductTitleCount || 0} kosong, ${audit.unverifiedProductCount || 0} belum sah`,
+      tone: (audit.reviewCount || audit.missingProductTitleCount || audit.unverifiedProductCount) ? "warn" : "good",
     },
     {
       label: "Auto Audit",
@@ -925,7 +932,8 @@ function renderActionCenter() {
 function renderActionSummary(container, summary) {
   if (!container) return;
   const cards = [
-    ["Perlu Akmal", summary.humanRequired || 0, "Tajuk produk belum sah"],
+    ["Perlu sah", summary.humanRequired || 0, "Produk belum cukup sah"],
+    ["Auto isi", summary.autoFilled || 0, "Daripada Shopee/DeepSeek"],
     ["Boleh auto", summary.autoPassed || 0, "Lulus quality gate"],
     ["Regenerate", summary.regenerateReady || 0, "Metadata ada, story perlu baiki"],
     ["Dilindungi", summary.autoGuarded || 0, "Tidak masuk queue tanpa semakan"],
@@ -988,7 +996,9 @@ function renderAutoAuditGuide(summary) {
   const items = [
     ["Objektif", summary.objective || "Pastikan copywriting tepat dan bermanfaat untuk netizen Malaysia."],
     ["Mode", summary.mode || "automasi stabil"],
-    ["Tajuk belum sah", `${summary.missingProductTitleCount || 0} siri`],
+    ["Auto isi produk", `${summary.autoFilled || 0} siri`],
+    ["Belum link-verified", `${summary.verifyNeeded || summary.unverifiedProductCount || 0} siri`],
+    ["Tajuk kosong", `${summary.missingProductTitleCount || 0} siri`],
     ["Semak terakhir", summary.lastAutoAuditAt || "Belum ada rekod"],
   ];
   els.autoAuditGuide.replaceChildren(
@@ -1013,7 +1023,11 @@ function renderProductAudit() {
   if (!els.auditIssueList || !els.auditMetrics) return;
   const summary = state.productAudit.summary || {};
   const items = state.productAudit.items || [];
-  const totalIssues = (summary.missingProductTitleCount || 0) + (summary.reviewCount || 0) + (summary.overLimitCount || 0);
+  const totalIssues =
+    (summary.missingProductTitleCount || 0) +
+    (summary.unverifiedProductCount || 0) +
+    (summary.reviewCount || 0) +
+    (summary.overLimitCount || 0);
 
   if (els.auditSummaryBadge) {
     els.auditSummaryBadge.textContent = state.productAudit.error ? "Audit offline" : totalIssues ? `${totalIssues} isu` : "Audit bersih";
@@ -1027,6 +1041,7 @@ function renderProductAudit() {
     ["Total siri", summary.totalPosts || state.posts.length || 0],
     ["Generated", summary.generatedCount || 0],
     ["Tiada tajuk", summary.missingProductTitleCount || 0],
+    ["Auto belum sah", summary.unverifiedProductCount || 0],
     ["Perlu semak", summary.reviewCount || 0],
   ];
   els.auditMetrics.replaceChildren(
@@ -1459,11 +1474,15 @@ function resetImageState() {
   showPreviewImage("", "");
 }
 
-async function runProductIntel() {
+async function runProductIntel(options = {}) {
   if (!els.productIntelButton) return;
   els.productIntelButton.disabled = true;
   els.productIntelButton.textContent = "Menyemak...";
-  if (els.productIntelNote) els.productIntelNote.textContent = "ThreadsMe sedang cuba kenal pasti produk daripada link dan nota.";
+  if (els.productIntelNote) {
+    els.productIntelNote.textContent = options.fromGenerate
+      ? "Tajuk kosong. ThreadsMe cuba auto kenal pasti produk daripada Shopee dahulu."
+      : "ThreadsMe sedang cuba kenal pasti produk daripada link dan nota.";
+  }
   try {
     const response = await fetch(`${AI_SERVER_URL}/api/product-intel`, {
       method: "POST",
@@ -1479,6 +1498,16 @@ async function runProductIntel() {
     });
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "Semakan produk gagal");
+    state.productIntel = data.productTitle
+      ? {
+          productTitle: data.productTitle,
+          productCategory: data.productCategory || "",
+          linkVerified: Boolean(data.linkVerified),
+          evidenceLevel: data.evidenceLevel || "",
+          confidence: Number(data.confidence || 0),
+          source: data.source || "",
+        }
+      : null;
     if (data.productTitle && !els.productTitle.value.trim()) {
       els.productTitle.value = data.productTitle;
     }
@@ -1489,17 +1518,46 @@ async function runProductIntel() {
     const warningText = data.warnings?.length ? ` Nota: ${data.warnings[0]}` : "";
     if (els.productIntelNote) {
       els.productIntelNote.textContent = data.productTitle
-        ? `Cadangan produk ditemui (${confidence}). Sila semak tajuk/kategori sebelum jana.${warningText}`
+        ? `${data.linkVerified ? "Produk link-verified" : "Cadangan produk auto"} ditemui (${confidence}). ${data.note || "Anda boleh edit sebelum jana."}${warningText}`
         : `${data.note || "ThreadsMe belum dapat kenal produk."}${warningText}`;
     }
+    return data;
   } catch (error) {
     if (els.productIntelNote) {
       els.productIntelNote.textContent = `Semakan produk gagal: ${error.message}. Isi tajuk produk manual sebelum jana.`;
     }
+    return null;
   } finally {
     els.productIntelButton.disabled = false;
     els.productIntelButton.textContent = "Auto semak produk Shopee";
   }
+}
+
+function getCurrentProductVerification(productTitle) {
+  const currentTitle = String(productTitle || "").trim();
+  if (!currentTitle) {
+    return {
+      productVerified: false,
+      productIntelEvidence: "missing_title",
+      productIntelConfidence: 0,
+      productIntelSource: "",
+    };
+  }
+  const intel = state.productIntel;
+  if (intel?.productTitle && intel.productTitle === currentTitle) {
+    return {
+      productVerified: Boolean(intel.linkVerified),
+      productIntelEvidence: intel.evidenceLevel || (intel.linkVerified ? "link_verified" : "story_inferred"),
+      productIntelConfidence: Number(intel.confidence || 0),
+      productIntelSource: intel.source || "Product Intel",
+    };
+  }
+  return {
+    productVerified: true,
+    productIntelEvidence: "manual_input",
+    productIntelConfidence: 100,
+    productIntelSource: "Jana Story manual",
+  };
 }
 
 function bindStoryGenerator() {
@@ -1507,6 +1565,14 @@ function bindStoryGenerator() {
 
   els.productIntelButton?.addEventListener("click", () => {
     runProductIntel();
+  });
+
+  els.productTitle?.addEventListener("input", () => {
+    state.productIntel = null;
+  });
+
+  els.productAffiliateLink?.addEventListener("input", () => {
+    state.productIntel = null;
   });
 
   els.storyImage.addEventListener("change", () => {
@@ -1523,6 +1589,7 @@ function bindStoryGenerator() {
   });
 
   els.productImageUrl.addEventListener("input", () => {
+    state.productIntel = null;
     const imageUrl = els.productImageUrl.value.trim();
     state.storyImageUrl = imageUrl;
     if (imageUrl) {
@@ -1553,17 +1620,23 @@ function bindStoryGenerator() {
   });
 
   els.generateStoryButton.addEventListener("click", async () => {
-    const productTitle = els.productTitle.value.trim();
-    const productCategory = els.productCategory.value.trim();
+    let productTitle = els.productTitle.value.trim();
+    let productCategory = els.productCategory.value.trim();
     const sourceText = els.storyInput.value.trim();
     const imageNotes = els.imageNotes.value.trim();
 
     if (!productTitle) {
-      els.storyOutput.value =
-        "Sila isi Tajuk produk wajib dahulu. Contoh: Sambal Nyet Berapi by Khairulaming 180g. Ini elak AI reka story yang tak kena dengan produk.";
-      setAiStatus("Tajuk produk wajib", "warn");
-      els.productTitle.focus();
-      return;
+      setAiStatus("Auto semak produk Shopee", "ready");
+      const intel = await runProductIntel({ fromGenerate: true });
+      productTitle = els.productTitle.value.trim();
+      productCategory = els.productCategory.value.trim();
+      if (!productTitle || !intel?.autoResolvable) {
+        els.storyOutput.value =
+          "ThreadsMe belum dapat sahkan produk daripada link Shopee dengan yakin. Isi Tajuk produk sebenar sekali, kemudian klik semula. Ini elak story cantik tapi salah produk.";
+        setAiStatus("Produk belum cukup jelas", "warn");
+        els.productTitle.focus();
+        return;
+      }
     }
 
     els.generateStoryButton.disabled = true;
@@ -1573,6 +1646,7 @@ function bindStoryGenerator() {
     setAiStatus(sourceText || imageNotes ? "DeepSeek sedang jana dan jadualkan" : "DeepSeek sedang cari angle dan jadualkan", "ready");
 
     try {
+      const verification = getCurrentProductVerification(productTitle);
       const response = await fetch(`${AI_SERVER_URL}/api/generate-story`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1580,6 +1654,7 @@ function bindStoryGenerator() {
           sourceText,
           productTitle,
           productCategory,
+          ...verification,
           imageNotes,
           imageName: state.storyImageName,
           imageSource: state.storyImageSource,

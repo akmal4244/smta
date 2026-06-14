@@ -8,6 +8,8 @@ const workspaceRoot = process.env.THREADSME_WORKSPACE_ROOT || here;
 const runtimeRoot = process.env.THREADSME_RUNTIME_DIR || path.join(workspaceRoot, "work", "runtime");
 const defaultKeyFile = path.join(workspaceRoot, "work", "private", "deepseek.key");
 const keyFile = process.env.DEEPSEEK_API_KEY_FILE || defaultKeyFile;
+const defaultShopeeCookieFile = path.join(workspaceRoot, "work", "private", "shopee-cookie.txt");
+const shopeeCookieFile = process.env.SHOPEE_COOKIE_FILE || defaultShopeeCookieFile;
 const legacyStoryRunsFile = path.join(here, "story-runs.json");
 const legacyScheduleFile = path.join(here, "threads_flexi_marble_schedule.json");
 const legacyStatusFile = path.join(here, "status.json");
@@ -25,6 +27,8 @@ const threadsGraphUrl = "https://graph.threads.net/v1.0";
 const threadsScheduleLimit = 25;
 const threadsApiDailyPublishLimit = 250;
 const maxPostingPerDay = 25;
+const autoProductResolveLimit = Math.max(1, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_LIMIT || 8), 25));
+const autoProductMinimumConfidence = Math.max(40, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_CONFIDENCE || 62), 95));
 const postingTimePresets = {
   1: ["10:00"],
   3: ["09:30", "12:30", "20:30"],
@@ -85,6 +89,16 @@ async function getApiKey() {
   const fromEnv = process.env.DEEPSEEK_API_KEY;
   if (fromEnv && fromEnv.trim()) return fromEnv.trim();
   return (await readFile(keyFile, "utf8")).trim();
+}
+
+async function getShopeeCookie() {
+  const fromEnv = process.env.SHOPEE_COOKIE;
+  if (fromEnv && fromEnv.trim()) return fromEnv.trim();
+  try {
+    return (await readFile(shopeeCookieFile, "utf8")).trim();
+  } catch {
+    return "";
+  }
 }
 
 function malaysiaNow() {
@@ -842,6 +856,9 @@ async function runThreadsMeAutomation() {
     actions: autoAudit.actions,
     updated: autoAudit.updated,
     protectedCount: autoAudit.protectedCount,
+    autoFilledCount: autoAudit.autoFilledCount,
+    linkVerifiedCount: autoAudit.linkVerifiedCount,
+    resolveTried: autoAudit.resolveTried,
   };
   await writeJsonFile(statusFile, result.status);
   await syncStoryRunsWithStatus(result.status, scheduleData);
@@ -868,7 +885,21 @@ async function scheduleGeneratedVersions(input, result, runId) {
   const versions = Array.isArray(result.versions) ? result.versions : [];
   const affiliateLink = String(input.affiliateLink || scheduleData.affiliate_link || "https://s.shopee.com.my/7VDqSOoKf3").trim();
   const postsPerDay = Math.max(1, Math.min(Number(input.postsPerDay || versions.length || 5), maxPostingPerDay));
-  const qualityReports = versions.map((version) => auditStoryQuality(version, input, affiliateLink));
+  const qualityReports = versions.map((version) => {
+    const quality = auditStoryQuality(version, input, affiliateLink);
+    if (input.productVerified === false) {
+      return {
+        ...quality,
+        status: "review",
+        score: Math.min(Number(quality.score || 0), 64),
+        reasons: [
+          "Produk dicadangkan automatik tetapi belum link-verified daripada Shopee.",
+          ...(quality.reasons || []),
+        ],
+      };
+    }
+    return quality;
+  });
   const schedulableVersions = versions
     .map((version, index) => ({ version, index, quality: qualityReports[index] }))
     .filter((item) => item.quality.status === "passed");
@@ -892,6 +923,10 @@ async function scheduleGeneratedVersions(input, result, runId) {
       createdAt: `${malaysiaNow()} GMT+8`,
       productTitle: String(input.productTitle || "").trim(),
       productCategory: String(input.productCategory || "").trim(),
+      productVerified: input.productVerified !== false,
+      productIntelEvidence: input.productIntelEvidence || "story_input",
+      productIntelConfidence: Number(input.productIntelConfidence || 100),
+      productIntelSource: input.productIntelSource || "Jana Story",
       qualityStatus: quality.status,
       qualityScore: quality.score,
       qualityChecks: quality.checks,
@@ -1368,6 +1403,9 @@ async function saveStoryRun(input, result) {
     productName: String(productTitle || input.imageNotes || input.sourceText || input.imageName || input.imageUrl || "Auto story Threads Malaysia").slice(0, 80),
     productTitle,
     productCategory,
+    productVerified: input.productVerified !== false,
+    productIntelEvidence: input.productIntelEvidence || "story_input",
+    productIntelConfidence: Number(input.productIntelConfidence || 100),
     imageName: String(input.imageName || "").trim(),
     imageSource: String(input.imageSource || "").trim(),
     imageUrl,
@@ -1389,6 +1427,11 @@ async function saveStoryRun(input, result) {
         qualityScore: quality.score,
         qualityChecks: quality.checks,
         qualityReasons: quality.reasons,
+        productTitle,
+        productCategory,
+        productVerified: input.productVerified !== false,
+        productIntelEvidence: input.productIntelEvidence || "story_input",
+        productIntelConfidence: Number(input.productIntelConfidence || 100),
       };
     }),
     schedule,
@@ -1492,6 +1535,7 @@ function parseNumberList(value) {
 function productAuditSummary(scheduleData, runs) {
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
   const missingProductTitle = [];
+  const unverifiedProduct = [];
   const reviewItems = [];
   const overLimit = [];
   const generated = [];
@@ -1501,6 +1545,9 @@ function productAuditSummary(scheduleData, runs) {
     if (post.source === "generated") generated.push(number);
     if (post.source === "generated" && !String(post.productTitle || "").trim()) {
       missingProductTitle.push(number);
+    }
+    if (post.source === "generated" && String(post.productTitle || "").trim() && post.productVerified === false) {
+      unverifiedProduct.push(number);
     }
     if (post.qualityStatus === "review" && String(post.productTitle || "").trim()) reviewItems.push(number);
     for (const key of ["main", "reply1", "reply2"]) {
@@ -1528,6 +1575,7 @@ function productAuditSummary(scheduleData, runs) {
 
   const issueNumbers = uniqueSortedNumbers([
     ...missingProductTitle,
+    ...unverifiedProduct,
     ...reviewItems,
     ...overLimit.map((item) => item.number),
   ]);
@@ -1539,6 +1587,8 @@ function productAuditSummary(scheduleData, runs) {
     issueCount: issueNumbers.length,
     missingProductTitle,
     missingProductTitleCount: missingProductTitle.length,
+    unverifiedProduct,
+    unverifiedProductCount: unverifiedProduct.length,
     reviewItems,
     reviewCount: reviewItems.length + runReviewItems.length,
     overLimit,
@@ -1554,6 +1604,7 @@ async function getProductAudit() {
   const summary = productAuditSummary(scheduleData, runs);
   const issueNumbers = uniqueSortedNumbers([
     ...summary.missingProductTitle,
+    ...summary.unverifiedProduct,
     ...summary.reviewItems,
     ...summary.overLimit.map((item) => item.number),
   ]);
@@ -1568,6 +1619,8 @@ async function getProductAudit() {
       affiliateLink: post.affiliateLink || scheduleData.affiliate_link || "",
       issue: !post.productTitle
         ? "Tiada tajuk produk"
+        : post.productVerified === false
+          ? "Produk auto belum disahkan"
         : post.qualityStatus === "review"
           ? "Perlu Semak Quality Gate"
           : "Had aksara / metadata",
@@ -1577,6 +1630,9 @@ async function getProductAudit() {
       snippet: String(post.main || "").slice(0, 180),
       qualityStatus: post.qualityStatus || "",
       qualityScore: post.qualityScore || null,
+      productVerified: post.productVerified !== false,
+      productIntelConfidence: post.productIntelConfidence || null,
+      productIntelEvidence: post.productIntelEvidence || "",
     };
   });
   return { summary, items };
@@ -1593,6 +1649,9 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
   let autoGuarded = 0;
   let humanRequired = 0;
   let regenerateReady = 0;
+  let autoFilled = 0;
+  let linkVerified = 0;
+  let verifyNeeded = 0;
 
   posts.forEach((post, index) => {
     const number = index + 1;
@@ -1602,6 +1661,8 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
     const affiliateLink = String(post.affiliateLink || scheduleData.affiliate_link || "").trim();
     const lengths = ["main", "reply1", "reply2"].map((key) => String(post[key] || "").length);
     const overLimit = lengths.some((length) => length > 300);
+    if (post.productIntelAutoFilled) autoFilled += 1;
+    if (productTitle && post.productVerified !== false) linkVerified += 1;
     const statusLabel = postedSet.has(number)
       ? "Lulus"
       : scheduledSet.has(number)
@@ -1625,6 +1686,27 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
         cta: "Buka Audit Produk",
         targetView: "audit",
         snippet: String(post.main || "").slice(0, 150),
+      });
+      return;
+    }
+
+    if (post.productVerified === false) {
+      verifyNeeded += 1;
+      humanRequired += 1;
+      autoGuarded += 1;
+      actions.push({
+        number,
+        priority: "medium",
+        mode: "verify_product",
+        title: `Siri ${number}: produk auto belum sah`,
+        detail: `Cadangan: ${productTitle}. Shopee belum beri bukti link yang cukup.`,
+        nextStep: "Semak tajuk/kategori atau regenerate selepas pasti produk tepat.",
+        status: statusLabel,
+        slot: post.slot || "",
+        cta: "Sahkan produk",
+        targetView: "audit",
+        snippet: String(post.main || "").slice(0, 150),
+        productIntelConfidence: post.productIntelConfidence || null,
       });
       return;
     }
@@ -1670,7 +1752,11 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
       regenerateReady,
       autoPassed,
       autoGuarded,
+      autoFilled,
+      linkVerified,
+      verifyNeeded,
       missingProductTitleCount: audit.missingProductTitleCount,
+      unverifiedProductCount: audit.unverifiedProductCount,
       reviewCount: audit.reviewCount,
       overLimitCount: audit.overLimitCount,
       lastAutoAuditAt: scheduleData.lastAutoProductAuditAt || "",
@@ -1678,6 +1764,95 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
       objective: "Pastikan story produk tepat, natural untuk netizen Malaysia, dan tidak masuk queue jika produk belum sah.",
     },
     actions: visibleActions,
+  };
+}
+
+function buildPostIntelInput(post, scheduleData, number) {
+  const affiliateLink = String(post.affiliateLink || scheduleData.affiliate_link || "").trim();
+  const imageUrl = String(post.imageUrl || post.image_url || scheduleData.image_url || "").trim();
+  const relatedSnippets = (Array.isArray(scheduleData.posts) ? scheduleData.posts : [])
+    .filter((item) => String(item?.affiliateLink || scheduleData.affiliate_link || "").trim() === affiliateLink)
+    .slice(0, 10)
+    .map((item, index) => {
+      const text = [item.productTitle, item.productCategory, item.generatedLabel, item.main, item.reply1, item.reply2]
+        .filter(Boolean)
+        .join(" ");
+      return `Konteks link sama ${index + 1}: ${text.replace(/\s+/g, " ").slice(0, 320)}`;
+    });
+  const sourceText = [
+    `Siri ${number}`,
+    post.generatedLabel,
+    post.main,
+    post.reply1,
+    post.reply2,
+    ...relatedSnippets,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+  return {
+    affiliateLink,
+    productUrl: affiliateLink,
+    imageUrl,
+    sourceText,
+    imageNotes: [post.productAuditNote, post.imageName, post.imageSource, post.slot].filter(Boolean).join(" | "),
+    productTitle: post.productTitle || "",
+    productCategory: post.productCategory || "",
+    useAi: true,
+  };
+}
+
+function applyProductIntelToPost(post, intel) {
+  const productTitle = cleanTitleCandidate(intel.productTitle || "");
+  if (!isUsefulProductTitle(productTitle)) return false;
+  post.productTitle = productTitle;
+  post.productCategory = cleanTitleCandidate(intel.productCategory || "") || post.productCategory || inferProductCategoryFromText(productTitle);
+  post.productVerified = Boolean(intel.linkVerified);
+  post.productIntelAutoFilled = true;
+  post.productIntelConfidence = Math.round(Number(intel.confidence || 0));
+  post.productIntelEvidence = intel.evidenceLevel || "not_enough_info";
+  post.productIntelSource = String(intel.source || "").slice(0, 220);
+  post.productIntelAt = `${malaysiaNow()} GMT+8`;
+  post.productIntelWarnings = Array.isArray(intel.warnings) ? intel.warnings.slice(0, 4) : [];
+  post.shopeeProductIds = Array.isArray(intel.shopeeProductIds) ? intel.shopeeProductIds.slice(0, 3) : [];
+  post.productAuditNote = intel.linkVerified
+    ? `Auto isi daripada link Shopee/affiliate. Confidence ${post.productIntelConfidence}%.`
+    : `Auto cadangan daripada DeepSeek/story kerana Shopee belum beri detail penuh. Confidence ${post.productIntelConfidence}%.`;
+  return true;
+}
+
+async function resolveProductForPost(post, scheduleData, number, cache) {
+  const input = buildPostIntelInput(post, scheduleData, number);
+  const cacheKey = input.affiliateLink ? `affiliate:${input.affiliateLink}` : "";
+  if (cacheKey && cache.has(cacheKey)) {
+    const cached = cache.get(cacheKey);
+    if (cached?.linkVerified && applyProductIntelToPost(post, cached)) {
+      return { tried: false, applied: true, linkVerified: true, intel: cached, cached: true };
+    }
+  }
+
+  const intel = await inspectProductIntel(input);
+  if (cacheKey && intel.linkVerified) cache.set(cacheKey, intel);
+  if (!intel.autoResolvable || !applyProductIntelToPost(post, intel)) {
+    return { tried: true, applied: false, linkVerified: false, intel };
+  }
+  return { tried: true, applied: true, linkVerified: Boolean(intel.linkVerified), intel };
+}
+
+async function autoCompleteStoryProductInput(input) {
+  if (String(input.productTitle || "").trim()) return input;
+  const intel = await inspectProductIntel({ ...input, useAi: true });
+  if (!intel.autoResolvable || !intel.productTitle) {
+    throw new Error("Tajuk produk belum cukup jelas daripada link Shopee. Isi tajuk produk sebenar supaya story tidak lari.");
+  }
+  return {
+    ...input,
+    productTitle: intel.productTitle,
+    productCategory: input.productCategory || intel.productCategory || "",
+    productVerified: Boolean(intel.linkVerified),
+    productIntelEvidence: intel.evidenceLevel || "",
+    productIntelConfidence: Number(intel.confidence || 0),
+    productIntelSource: intel.source || "Server product intel",
+    productIntelWarnings: intel.warnings || [],
   };
 }
 
@@ -1690,11 +1865,16 @@ async function runAutoProductAudit() {
   let protectedCount = 0;
   let passedCount = 0;
   let reviewCount = 0;
+  let resolveTried = 0;
+  let autoFilledCount = 0;
+  let linkVerifiedCount = 0;
+  let lowConfidenceCount = 0;
+  const resolveCache = new Map();
 
-  posts.forEach((post, index) => {
-    if (post.source !== "generated") return;
+  for (const [index, post] of posts.entries()) {
+    if (post.source !== "generated") continue;
     const number = index + 1;
-    const productTitle = String(post.productTitle || "").trim();
+    let productTitle = String(post.productTitle || "").trim();
     const productCategory = String(post.productCategory || "").trim() || inferProductCategoryFromText(
       [post.main, post.reply1, post.reply2, post.generatedLabel, post.imageUrl].filter(Boolean).join(" "),
     );
@@ -1703,10 +1883,37 @@ async function runAutoProductAudit() {
       qualityStatus: post.qualityStatus,
       qualityScore: post.qualityScore,
       productCategory: post.productCategory,
+      productTitle: post.productTitle,
+      productVerified: post.productVerified,
+      productIntelAutoFilled: post.productIntelAutoFilled,
+      productIntelConfidence: post.productIntelConfidence,
       autoAuditStatus: post.autoAuditStatus,
     });
 
     if (productCategory && !post.productCategory) post.productCategory = productCategory;
+
+    if (!productTitle && resolveTried < autoProductResolveLimit) {
+      const resolved = await resolveProductForPost(post, scheduleData, number, resolveCache);
+      if (resolved.tried) resolveTried += 1;
+      if (resolved.applied) {
+        autoFilledCount += 1;
+        if (resolved.linkVerified) linkVerifiedCount += 1;
+        productTitle = String(post.productTitle || "").trim();
+      } else {
+        lowConfidenceCount += 1;
+        post.productIntelAt = `${malaysiaNow()} GMT+8`;
+        post.productIntelConfidence = Math.round(Number(resolved.intel?.confidence || 0));
+        post.productIntelEvidence = resolved.intel?.evidenceLevel || "not_enough_info";
+        post.productIntelWarnings = Array.isArray(resolved.intel?.warnings) ? resolved.intel.warnings.slice(0, 4) : [];
+      }
+    }
+
+    if (productTitle && post.productVerified === false) {
+      const titleCategory = inferProductCategoryFromText(productTitle);
+      if (titleCategory && post.productCategory !== titleCategory) {
+        post.productCategory = titleCategory;
+      }
+    }
 
     if (!productTitle) {
       protectedCount += 1;
@@ -1716,6 +1923,20 @@ async function runAutoProductAudit() {
       post.qualityReasons = ["Tajuk produk sebenar belum disahkan. ThreadsMe tidak akan reka produk untuk pembaca."];
       post.autoAuditStatus = "needs_product_title";
       post.autoAuditDecision = "Perlu input tajuk produk sebelum boleh masuk queue.";
+      post.autoAuditAt = `${malaysiaNow()} GMT+8`;
+    } else if (post.productVerified === false) {
+      protectedCount += 1;
+      reviewCount += 1;
+      const quality = auditStoryQuality(post, { productTitle, productCategory: post.productCategory || productCategory, affiliateLink }, affiliateLink);
+      post.qualityStatus = "review";
+      post.qualityScore = Math.min(Number(quality.score || 0), 64);
+      post.qualityChecks = quality.checks;
+      post.qualityReasons = [
+        "Maklumat produk auto-infer belum disahkan daripada Shopee/link.",
+        ...(quality.reasons || []),
+      ];
+      post.autoAuditStatus = "needs_product_verification";
+      post.autoAuditDecision = "Produk ada cadangan automatik, tetapi belum link-verified. Semak atau regenerate sebelum publish.";
       post.autoAuditAt = `${malaysiaNow()} GMT+8`;
     } else {
       const quality = auditStoryQuality(post, { productTitle, productCategory, affiliateLink }, affiliateLink);
@@ -1736,16 +1957,20 @@ async function runAutoProductAudit() {
       qualityStatus: post.qualityStatus,
       qualityScore: post.qualityScore,
       productCategory: post.productCategory,
+      productTitle: post.productTitle,
+      productVerified: post.productVerified,
+      productIntelAutoFilled: post.productIntelAutoFilled,
+      productIntelConfidence: post.productIntelConfidence,
       autoAuditStatus: post.autoAuditStatus,
     });
     if (previous !== current) touched += 1;
     post.autoAuditNumber = number;
-  });
+  }
 
   scheduleData.posts = posts;
   scheduleData.lastAutoProductAuditAt = `${malaysiaNow()} GMT+8`;
   scheduleData.lastAutoProductAuditNote =
-    `${touched} siri dikemas kini. ${protectedCount} siri dilindungi kerana tajuk produk belum sah.`;
+    `${touched} siri dikemas kini. ${autoFilledCount} auto isi produk, ${linkVerifiedCount} link-verified, ${protectedCount} siri dilindungi.`;
   await writeJsonFile(scheduleFile, scheduleData);
 
   const automation = buildAutomatedStatus(scheduleData, statusData, Date.now());
@@ -1762,6 +1987,10 @@ async function runAutoProductAudit() {
     protectedCount,
     passedCount,
     reviewCount,
+    resolveTried,
+    autoFilledCount,
+    linkVerifiedCount,
+    lowConfidenceCount,
     status: automation.status,
     productAudit: await getProductAudit(),
     ...report,
@@ -1785,6 +2014,11 @@ async function updateProductAudit(input) {
     if (!post) continue;
     post.productTitle = productTitle;
     post.productCategory = productCategory;
+    post.productVerified = true;
+    post.productIntelAutoFilled = Boolean(post.productIntelAutoFilled);
+    post.productIntelEvidence = "manual_verified";
+    post.productIntelConfidence = 100;
+    post.productIntelSource = "Product Audit manual";
     if (affiliateLink) post.affiliateLink = affiliateLink;
     post.productAuditAt = `${malaysiaNow()} GMT+8`;
     post.productAuditNote = String(input.note || "Metadata produk dikemas kini melalui Product Audit.").trim();
@@ -1855,6 +2089,10 @@ async function regenerateProductAudit(input) {
     post.reply2 = version.reply2;
     post.productTitle = productTitle;
     post.productCategory = productCategory;
+    post.productVerified = true;
+    post.productIntelEvidence = "regenerated_verified";
+    post.productIntelConfidence = 100;
+    post.productIntelSource = "Product Audit regenerate";
     post.affiliateLink = affiliateLink || post.affiliateLink;
     post.regeneratedAt = `${malaysiaNow()} GMT+8`;
     post.regenerationReason = "Regenerated melalui Product Audit supaya story selari dengan produk.";
@@ -1899,11 +2137,48 @@ async function regenerateProductAudit(input) {
   return { updatedNumbers, fallback: result.fallback, usage: result.usage, ...(await getProductAudit()) };
 }
 
-function cleanTitleCandidate(value) {
+function decodeHtmlEntities(value) {
   return String(value || "")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&#(\d+);/g, (_, code) => {
+      const valueCode = Number(code);
+      return Number.isFinite(valueCode) ? String.fromCharCode(valueCode) : "";
+    });
+}
+
+function cleanTitleCandidate(value) {
+  return decodeHtmlEntities(value)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\\u0026/g, "&")
     .replace(/\s*[\|-]\s*Shopee.*$/i, "")
+    .replace(/\b(?:buy|jual|harga|online shopping)\b.*$/i, "")
     .replace(/\s+/g, " ")
-    .trim();
+    .trim()
+    .split(/\s+/)
+    .slice(0, 22)
+    .join(" ");
+}
+
+function isUsefulProductTitle(value) {
+  const title = cleanTitleCandidate(decodeHtmlEntities(value));
+  const lower = title.toLowerCase();
+  if (title.length < 8) return false;
+  if (/^(shopee|online shopping|file|image|gambar|produk|barang|product|tiada tajuk|untitled)\b/i.test(title)) return false;
+  if (/^(my|sg|vn|th|id)[-\s]?\d{6,}/i.test(title)) return false;
+  if (/^[a-f0-9]{18,}$/i.test(title)) return false;
+  if (/^\/?(opaanlp|product|api)\b/i.test(title)) return false;
+  return tokenizeProductText(lower).length >= 2 || /\b(sambal|marble|lampu|organizer|rak|divider|wallpaper|led|cili|chili)\b/i.test(lower);
+}
+
+function looksLikeStorySentence(value) {
+  const text = cleanTitleCandidate(value).toLowerCase();
+  if (/[?!]/.test(text)) return true;
+  if (text.split(/\s+/).length > 12) return true;
+  return /^(aku|bila|kadang|ada tak|pernah|rupanya|yang buat|mula-mula|kalau hari|hari ni|balik|rumah rasa)\b/i.test(text);
 }
 
 function inferProductCategoryFromText(text) {
@@ -1921,6 +2196,38 @@ function inferProductCategoryFromText(text) {
     return "organizer rumah, simpanan barang, kemas ruang";
   }
   return "";
+}
+
+function inferStoryProductCandidate(text) {
+  const lower = String(text || "").toLowerCase();
+  const rules = [
+    {
+      pattern: /flexi\s*marble\s*sheet|stiker\s*marble|sticker\s*marble|marble\s*sheet|corak\s*marble/,
+      title: "Flexi Marble Sheet",
+      category: "dekorasi rumah, kemasan dinding dan meja, projek DIY",
+    },
+    {
+      pattern: /sambal\s*nyet|sambal\s*berapi|khairulaming|sambal\s*ready/,
+      title: "Sambal Nyet Berapi by Khairulaming",
+      category: "sambal ready-to-eat, lauk cepat, penambah selera",
+    },
+    {
+      pattern: /fairy\s*light|lampu\s*(led|hias|dekor|kecil)|led\s*string|lampu\s*kelip/,
+      title: "Lampu LED hiasan",
+      category: "lampu dekorasi, pencahayaan bilik, suasana meja atau ruang kecil",
+    },
+    {
+      pattern: /storage\s*box|kotak\s*simpan|bekas\s*simpan|organizer|rak\s*kecik|rak\s*kecil|susun\s*barang/,
+      title: "Organizer rumah",
+      category: "organizer rumah, simpanan barang, kemas ruang",
+    },
+    {
+      pattern: /room\s*divider|divider\s*lipat|pembahagi\s*ruang|partition/,
+      title: "Room divider lipat",
+      category: "pembahagi ruang, privasi rumah, susun ruang kerja atau bilik",
+    },
+  ];
+  return rules.find((rule) => rule.pattern.test(lower)) || null;
 }
 
 function extractHtmlMeta(html) {
@@ -1948,33 +2255,275 @@ function titleFromUrlPath(urlValue) {
   }
 }
 
+function parseShopeeProductIds(urlValue) {
+  try {
+    const url = new URL(urlValue);
+    const host = url.hostname.toLowerCase();
+    if (!host.includes("shopee")) return null;
+    const full = decodeURIComponent(`${url.pathname}${url.search}`);
+    const productMatch = full.match(/\/product\/(\d+)\/(\d+)/i) || full.match(/\/i\.(\d+)\.(\d+)/i);
+    if (productMatch) {
+      return { shopId: productMatch[1], itemId: productMatch[2], url: url.href };
+    }
+    const parts = url.pathname.split("/").filter(Boolean);
+    for (let index = 0; index < parts.length - 1; index += 1) {
+      if (/^\d{5,}$/.test(parts[index]) && /^\d{6,}$/.test(parts[index + 1])) {
+        return { shopId: parts[index], itemId: parts[index + 1], url: url.href };
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function shopeeProductKey(ids) {
+  return ids?.shopId && ids?.itemId ? `${ids.shopId}:${ids.itemId}` : "";
+}
+
+function normalizeShopeeItemPayload(payload) {
+  const data = payload?.data || payload?.item || payload;
+  const item = data?.item || data?.product_info || data;
+  const title = cleanTitleCandidate(
+    item?.name ||
+      item?.title ||
+      item?.item?.name ||
+      item?.item_basic?.name ||
+      data?.name ||
+      "",
+  );
+  const description = cleanTitleCandidate(
+    item?.description ||
+      item?.item?.description ||
+      item?.item_basic?.description ||
+      data?.description ||
+      "",
+  );
+  const categories = [
+    ...(Array.isArray(item?.categories) ? item.categories : []),
+    ...(Array.isArray(data?.categories) ? data.categories : []),
+  ]
+    .map((category) => category?.display_name || category?.cat_name || category?.name || "")
+    .filter(Boolean)
+    .join(", ");
+  return { title, description, categories };
+}
+
+async function fetchShopeeItemDetails(ids) {
+  if (!ids?.shopId || !ids?.itemId) return { warnings: ["Shopee product id tidak lengkap."] };
+  const cookie = await getShopeeCookie();
+  const urls = [
+    `https://shopee.com.my/api/v4/pdp/get_pc?shop_id=${ids.shopId}&item_id=${ids.itemId}`,
+    `https://shopee.com.my/api/v4/item/get?shopid=${ids.shopId}&itemid=${ids.itemId}`,
+  ];
+  const warnings = [];
+  for (const urlValue of urls) {
+    try {
+      const response = await fetch(urlValue, {
+        redirect: "follow",
+        headers: {
+          "user-agent": "Mozilla/5.0 ThreadsMe Product Intel",
+          accept: "application/json,text/plain,*/*",
+          referer: `https://shopee.com.my/product/${ids.shopId}/${ids.itemId}`,
+          "x-api-source": "pc",
+          ...(cookie ? { cookie } : {}),
+        },
+        signal: AbortSignal.timeout(10000),
+      });
+      const raw = await response.text();
+      if (!response.ok) {
+        warnings.push(`Shopee API ${response.status} untuk item ${ids.itemId}.`);
+        continue;
+      }
+      const parsed = JSON.parse(raw);
+      const normalized = normalizeShopeeItemPayload(parsed);
+      if (isUsefulProductTitle(normalized.title)) {
+        return {
+          ...normalized,
+          source: urlValue,
+          evidenceLevel: "link_verified",
+          warnings,
+        };
+      }
+    } catch (error) {
+      warnings.push(`Gagal baca Shopee item ${ids.itemId}: ${error.message}`);
+    }
+  }
+  return { warnings };
+}
+
+function parseJsonObjectFromText(value) {
+  const text = String(value || "").trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  try {
+    return JSON.parse(text);
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try {
+        return JSON.parse(text.slice(start, end + 1));
+      } catch {
+        return {};
+      }
+    }
+  }
+  return {};
+}
+
+async function askDeepSeekProductIntel(input, baseIntel) {
+  let apiKey = "";
+  try {
+    apiKey = await getApiKey();
+  } catch {
+    apiKey = "";
+  }
+  if (!apiKey) {
+    return {
+      warnings: ["DeepSeek key tiada, jadi auto product intel guna metadata link sahaja."],
+      confidence: 0,
+      evidenceLevel: "not_enough_info",
+    };
+  }
+
+  const sourceText = String(input.sourceText || "").slice(0, 1800);
+  const payload = {
+    affiliateLink: input.affiliateLink || "",
+    productUrl: input.productUrl || "",
+    imageUrl: input.imageUrl || "",
+    imageNotes: String(input.imageNotes || "").slice(0, 900),
+    providedTitle: input.productTitle || "",
+    providedCategory: input.productCategory || "",
+    shopeeProductIds: baseIntel.shopeeProductIds || [],
+    fetchedCandidates: (baseIntel.candidates || []).slice(0, 8),
+    fetchedWarnings: (baseIntel.warnings || []).slice(0, 8),
+    existingStoryText: sourceText,
+  };
+
+  try {
+    const response = await fetch(deepseekUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "deepseek-v4-flash",
+        messages: [
+          {
+            role: "system",
+            content: [
+              "Anda ialah analis metadata produk affiliate Shopee Malaysia untuk sistem ThreadsMe.",
+              "Tugas anda ialah pulangkan JSON sahaja, bukan copywriting.",
+              "Jangan reka nama produk jika bukti link/metadata tidak cukup. Jika hanya boleh infer daripada ayat story, tandakan evidenceLevel sebagai story_inferred.",
+              "evidenceLevel mesti salah satu: link_verified, story_inferred, not_enough_info.",
+              "link_verified hanya boleh digunakan jika fetchedCandidates/providedTitle jelas menunjukkan nama produk sebenar, bukan sekadar shopid/itemid.",
+              "Pulangkan confidence 0-95. Kurangkan confidence jika Shopee API blocked, title generik, atau story nampak tidak sepadan.",
+              "Kategori mesti ringkas dalam Bahasa Melayu Malaysia dan berfungsi untuk copywriting Threads.",
+            ].join("\n"),
+          },
+          {
+            role: "user",
+            content: [
+              "Analisis data ini dan pulangkan JSON:",
+              JSON.stringify(payload, null, 2),
+              "",
+              'Format wajib: {"productTitle":"","productCategory":"","productUseCase":"","confidence":0,"evidenceLevel":"not_enough_info","storyAligned":false,"sourceEvidence":"","warning":""}',
+            ].join("\n"),
+          },
+        ],
+        thinking: { type: "disabled" },
+        response_format: { type: "json_object" },
+        temperature: 0.15,
+        max_tokens: 1400,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(25000),
+    });
+
+    const raw = await response.text();
+    if (!response.ok) {
+      return {
+        warnings: [`DeepSeek product intel gagal ${response.status}: ${raw.slice(0, 180)}`],
+        confidence: 0,
+        evidenceLevel: "not_enough_info",
+      };
+    }
+    const data = JSON.parse(raw);
+    const parsed = parseJsonObjectFromText(data.choices?.[0]?.message?.content || "{}");
+    const productTitle = cleanTitleCandidate(parsed.productTitle || "");
+    const confidence = Math.max(0, Math.min(Number(parsed.confidence || 0), 95));
+    const evidenceLevel = ["link_verified", "story_inferred", "not_enough_info"].includes(parsed.evidenceLevel)
+      ? parsed.evidenceLevel
+      : "not_enough_info";
+    return {
+      productTitle,
+      productCategory: cleanTitleCandidate(parsed.productCategory || ""),
+      productUseCase: cleanTitleCandidate(parsed.productUseCase || ""),
+      confidence,
+      evidenceLevel,
+      storyAligned: Boolean(parsed.storyAligned),
+      sourceEvidence: String(parsed.sourceEvidence || "").slice(0, 240),
+      warning: String(parsed.warning || "").slice(0, 240),
+      source: "DeepSeek product intel",
+      warnings: [],
+    };
+  } catch (error) {
+    return {
+      warnings: [`DeepSeek product intel error: ${error.message}`],
+      confidence: 0,
+      evidenceLevel: "not_enough_info",
+    };
+  }
+}
+
 async function inspectProductIntel(input) {
   const urls = [input.affiliateLink, input.productUrl, input.imageUrl]
     .map((value) => String(value || "").trim())
     .filter(Boolean);
   const sourceText = String(input.sourceText || "").trim();
   const imageNotes = String(input.imageNotes || "").trim();
-  const providedTitle = String(input.productTitle || "").trim();
-  const providedCategory = String(input.productCategory || "").trim();
+  const providedTitle = cleanTitleCandidate(input.productTitle || "");
+  const providedCategory = cleanTitleCandidate(input.productCategory || "");
   const notes = [sourceText, imageNotes, providedTitle, providedCategory].filter(Boolean).join(" ");
   const candidates = [];
   const warnings = [];
+  const shopeeProductIds = [];
+  const seenShopeeIds = new Set();
+  const shopeeCookie = await getShopeeCookie();
+
+  const addShopeeIds = (ids) => {
+    const key = shopeeProductKey(ids);
+    if (!key || seenShopeeIds.has(key)) return;
+    seenShopeeIds.add(key);
+    shopeeProductIds.push(ids);
+  };
 
   for (const urlValue of urls.slice(0, 3)) {
+    addShopeeIds(parseShopeeProductIds(urlValue));
     try {
       const response = await fetch(urlValue, {
         redirect: "follow",
         headers: {
           "user-agent": "Mozilla/5.0 ThreadsMe Product Intel",
           accept: "text/html,application/xhtml+xml,image/*,*/*",
+          ...(shopeeCookie ? { cookie: shopeeCookie } : {}),
         },
         signal: AbortSignal.timeout(12000),
       });
+      const finalUrl = response.url || urlValue;
+      addShopeeIds(parseShopeeProductIds(finalUrl));
       const contentType = response.headers.get("content-type") || "";
       if (/text\/html|application\/xhtml/i.test(contentType)) {
         const html = (await response.text()).slice(0, 500000);
         const meta = extractHtmlMeta(html);
-        if (meta.title) candidates.push({ source: response.url || urlValue, title: meta.title, description: meta.description });
+        if (isUsefulProductTitle(meta.title)) {
+          candidates.push({
+            source: finalUrl,
+            evidenceLevel: "link_verified",
+            title: meta.title,
+            description: meta.description,
+          });
+        }
       } else {
         warnings.push(`${urlValue} nampak seperti fail ${contentType || "bukan HTML"}, jadi tajuk produk tidak boleh diekstrak terus.`);
       }
@@ -1982,38 +2531,158 @@ async function inspectProductIntel(input) {
       warnings.push(`Gagal semak ${urlValue}: ${error.message}`);
     }
     const pathTitle = titleFromUrlPath(urlValue);
-    if (pathTitle && pathTitle.length > 8 && !/^file\/|\/file\/|my \d+/i.test(pathTitle)) {
-      candidates.push({ source: urlValue, title: pathTitle, description: "" });
+    if (isUsefulProductTitle(pathTitle) && !/^file\/|\/file\/|my \d+/i.test(pathTitle)) {
+      candidates.push({ source: urlValue, evidenceLevel: "url_path", title: pathTitle, description: "" });
+    }
+  }
+
+  for (const ids of shopeeProductIds.slice(0, 2)) {
+    const item = await fetchShopeeItemDetails(ids);
+    warnings.push(...(item.warnings || []));
+    if (isUsefulProductTitle(item.title)) {
+      candidates.push({
+        source: item.source || `Shopee item ${ids.itemId}`,
+        evidenceLevel: item.evidenceLevel || "link_verified",
+        title: item.title,
+        description: [item.description, item.categories].filter(Boolean).join(" "),
+      });
     }
   }
 
   if (providedTitle) {
-    candidates.push({ source: "tajuk diisi", title: providedTitle.slice(0, 140), description: notes.slice(0, 240) });
-  } else if (sourceText) {
-    const noteTitle = cleanTitleCandidate(sourceText.split(/\n/)[0]);
-    if (noteTitle.length >= 8) candidates.push({ source: "brief", title: noteTitle.slice(0, 140), description: notes.slice(0, 240) });
+    candidates.push({
+      source: "tajuk diisi",
+      evidenceLevel: "provided",
+      title: providedTitle.slice(0, 140),
+      description: notes.slice(0, 240),
+    });
+  } else {
+    const storyProduct = inferStoryProductCandidate(notes);
+    if (storyProduct) {
+      candidates.push({
+        source: "keyword story",
+        evidenceLevel: "story_inferred",
+        title: storyProduct.title,
+        description: [storyProduct.category, notes.slice(0, 240)].filter(Boolean).join(" "),
+      });
+      if (!providedCategory) {
+        candidates.push({
+          source: "kategori keyword",
+          evidenceLevel: "story_inferred",
+          title: storyProduct.title,
+          description: storyProduct.category,
+        });
+      }
+    }
   }
 
-  const best = candidates
-    .map((candidate) => ({
-      ...candidate,
-      title: cleanTitleCandidate(candidate.title),
-      score: tokenizeProductText(candidate.title).length + (candidate.description ? 1 : 0),
-    }))
-    .filter((candidate) => candidate.title.length >= 6)
-    .sort((a, b) => b.score - a.score)[0] || null;
+  if (!providedTitle && sourceText) {
+    const noteTitle = cleanTitleCandidate(sourceText.split(/\n/)[0]);
+    if (isUsefulProductTitle(noteTitle) && !looksLikeStorySentence(noteTitle)) {
+      candidates.push({
+        source: "brief/story",
+        evidenceLevel: "story_inferred",
+        title: noteTitle.slice(0, 140),
+        description: notes.slice(0, 240),
+      });
+    }
+  }
 
-  const joined = [best?.title, best?.description, notes].filter(Boolean).join(" ");
-  return {
+  const ranked = candidates
+    .map((candidate) => {
+      const title = cleanTitleCandidate(candidate.title);
+      const evidenceBonus =
+        candidate.evidenceLevel === "link_verified" ? 4 :
+          candidate.evidenceLevel === "provided" ? 3 :
+            candidate.evidenceLevel === "story_inferred" ? 1 : 0;
+      return {
+        ...candidate,
+        title,
+        score: tokenizeProductText(`${title} ${candidate.description || ""}`).length + evidenceBonus,
+      };
+    })
+    .filter((candidate) => isUsefulProductTitle(candidate.title))
+    .sort((a, b) => b.score - a.score);
+
+  let best = ranked[0] || null;
+  let evidenceLevel = best?.evidenceLevel || "not_enough_info";
+  let confidence = best ? Math.min(95, 45 + best.score * 7) : 20;
+  let source = best?.source || "";
+  let storyAligned = false;
+  let sourceEvidence = "";
+
+  const baseIntel = {
     productTitle: best?.title || "",
-    productCategory: inferProductCategoryFromText(joined),
-    confidence: best ? Math.min(95, 55 + best.score * 8) : 20,
-    source: best?.source || "",
-    candidates: candidates.slice(0, 5),
+    productCategory: inferProductCategoryFromText([best?.title, best?.description, notes].filter(Boolean).join(" ")),
+    confidence,
+    source,
+    evidenceLevel,
+    candidates: ranked.slice(0, 8),
     warnings,
-    note: best
-      ? "Sila semak dan edit tajuk/kategori sebelum jana story."
-      : "ThreadsMe belum dapat kenal produk. Isi tajuk produk secara manual supaya story tidak lari.",
+    shopeeProductIds,
+  };
+
+  const needsAi =
+    input.useAi !== false &&
+    (!best || evidenceLevel !== "link_verified" || confidence < 78 || !baseIntel.productCategory);
+  if (needsAi) {
+    const aiIntel = await askDeepSeekProductIntel(input, baseIntel);
+    warnings.push(...(aiIntel.warnings || []));
+    if (aiIntel.warning) warnings.push(aiIntel.warning);
+    if (isUsefulProductTitle(aiIntel.productTitle) && aiIntel.confidence >= 45) {
+      const aiEvidence = aiIntel.evidenceLevel || "story_inferred";
+      const aiBeatsCurrent =
+        !best ||
+        (aiEvidence === "link_verified" && evidenceLevel !== "link_verified") ||
+        aiIntel.confidence > confidence + 5;
+      if (aiBeatsCurrent) {
+        best = {
+          source: aiIntel.source || "DeepSeek product intel",
+          evidenceLevel: aiEvidence,
+          title: aiIntel.productTitle,
+          description: [aiIntel.productCategory, aiIntel.productUseCase, aiIntel.sourceEvidence].filter(Boolean).join(" "),
+        };
+        confidence = aiIntel.confidence;
+        evidenceLevel = aiEvidence;
+        source = best.source;
+      }
+      storyAligned = Boolean(aiIntel.storyAligned);
+      sourceEvidence = aiIntel.sourceEvidence || "";
+      if (aiIntel.productCategory && !baseIntel.productCategory) {
+        baseIntel.productCategory = aiIntel.productCategory;
+      }
+    }
+  }
+
+  const joined = [best?.title, best?.description, baseIntel.productCategory, notes].filter(Boolean).join(" ");
+  const productTitle = isUsefulProductTitle(best?.title) ? cleanTitleCandidate(best.title) : "";
+  const titleCategory = inferProductCategoryFromText(productTitle);
+  const productCategory =
+    evidenceLevel === "provided"
+      ? providedCategory || titleCategory || baseIntel.productCategory || inferProductCategoryFromText(joined)
+      : titleCategory || providedCategory || baseIntel.productCategory || inferProductCategoryFromText(joined);
+  const verified = evidenceLevel === "link_verified" || evidenceLevel === "provided";
+  const autoResolvable = Boolean(productTitle) && confidence >= autoProductMinimumConfidence;
+  const linkVerified = Boolean(productTitle) && verified && confidence >= autoProductMinimumConfidence;
+
+  return {
+    productTitle,
+    productCategory,
+    confidence: productTitle ? confidence : 20,
+    source,
+    evidenceLevel,
+    linkVerified,
+    storyAligned,
+    sourceEvidence,
+    autoResolvable,
+    shopeeProductIds,
+    candidates: ranked.slice(0, 8),
+    warnings: warnings.filter(Boolean).slice(0, 10),
+    note: productTitle
+      ? verified
+        ? "Produk berjaya dikenal pasti daripada link/metadata. Anda masih boleh edit jika perlu."
+        : "Produk dicadangkan daripada story/AI, tetapi belum disahkan penuh oleh Shopee. Semak jika copy nampak pelik."
+      : "ThreadsMe belum dapat kenal produk dengan yakin. Shopee mungkin block detail tanpa sesi login/cookie.",
   };
 }
 
@@ -2083,7 +2752,7 @@ const server = createServer(async (req, res) => {
       } catch {
         hasKey = false;
       }
-      sendJson(res, 200, { ok: true, hasKey, model: "deepseek-v4-flash" });
+      sendJson(res, 200, { ok: true, hasKey, model: "deepseek-v4-flash", hasShopeeCookie: Boolean(await getShopeeCookie()) });
       return;
     }
 
@@ -2125,10 +2794,12 @@ const server = createServer(async (req, res) => {
       } catch {
         hasKey = false;
       }
+      const hasShopeeCookie = Boolean(await getShopeeCookie());
       sendJson(res, 200, {
         ok: true,
         runtimeRoot,
         deepseek: { hasKey, model: "deepseek-v4-flash" },
+        shopee: { hasCookie: hasShopeeCookie },
         queue: {
           totalPosts: Array.isArray(scheduleData.posts) ? scheduleData.posts.length : 0,
           pending: uniqueSortedNumbers(statusData.scheduled).length,
@@ -2205,7 +2876,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/generate-story") {
-      const input = await readBody(req);
+      const input = await autoCompleteStoryProductInput(await readBody(req));
       const result = await generateStory(input);
       const run = await saveStoryRun(input, result);
       sendJson(res, 200, { ...result, run });

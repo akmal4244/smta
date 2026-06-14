@@ -25,12 +25,17 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Model AI semasa ialah `deepseek-v4-flash`.
 - Publisher Threads default mesti kekal `Dry-run` sehingga token dan User ID disahkan.
 - Token dan API key tidak boleh di-commit ke repo.
+- Cookie Shopee jika digunakan mesti disimpan sebagai env `SHOPEE_COOKIE` atau `work/private/shopee-cookie.txt`, tidak boleh di-commit.
 - Runtime JSON aktif berada dalam `work/runtime/` dan tidak di-commit.
 
 ## Peraturan Story Produk
 
-- `Tajuk produk wajib` mesti diisi sebelum jana story.
-- `Kategori / kegunaan produk` sangat digalakkan supaya story tidak lari produk.
+- ThreadsMe mesti cuba auto kenal produk daripada link affiliate Shopee dahulu sebelum minta input manual.
+- Flow product intel: resolve redirect Shopee, simpan `shopid/itemid`, cuba metadata/API Shopee, kemudian gunakan DeepSeek untuk cadangan tajuk/kategori dan semakan alignment.
+- Jika cookie Shopee private tersedia, request Shopee boleh cuba endpoint login; jika tiada/expired, fallback kepada metadata redirect + DeepSeek.
+- Jika produk `link_verified`, siri boleh terus ikut flow Quality Gate dan jadual.
+- Jika produk cuma `story_inferred` atau confidence rendah, status mesti kekal `Perlu Semak` / `needs_product_verification` dan jangan publish.
+- `Tajuk produk` masih boleh diedit manual; simpan/regenerate daripada Product Audit dianggap `manual_verified`.
 - Link gambar Shopee sahaja tidak cukup untuk kenal produk kerana URL imej tidak semestinya membawa nama produk.
 - Setiap siri mesti ada tiga bahagian:
   - `[POST UTAMA]`
@@ -77,7 +82,7 @@ Snapshot ini dibuat pada `2026-06-14` dan boleh berubah apabila automasi berjala
 - Remaining/Blocked: `87`.
 - Batch terbaru `#97-#121` ditetapkan kepada produk `Sambal Nyet Berapi by Khairulaming 180g`.
 - Batch terbaru sudah bawah `300 aksara` untuk setiap post.
-- Ada `61` siri generated lama yang belum ada metadata `productTitle`; ini patut diaudit kemudian.
+- Ada siri generated lama yang belum ada metadata `productTitle`; Auto Audit v0.9.5 patut cuba isi daripada link Shopee/DeepSeek secara berperingkat.
 
 ## Prinsip Design
 
@@ -87,12 +92,12 @@ Snapshot ini dibuat pada `2026-06-14` dan boleh berubah apabila automasi berjala
 - Modul mesti dipisahkan: Ringkasan, Jana Story, Jadual Threads, Audit Produk, Automasi Live.
 - Status automation mesti sentiasa jelas pada pengguna.
 - Audit Produk mesti paparkan ayat semasa `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` supaya user boleh semak copywriting sebelum regenerate.
-- Auto Audit Produk mesti berjalan bersama sync automation. User hanya perlu dilibatkan untuk input yang sistem tidak patut reka, khususnya tajuk produk sebenar.
+- Auto Audit Produk mesti berjalan bersama sync automation. User hanya perlu dilibatkan untuk input yang sistem tidak dapat sahkan daripada link Shopee/DeepSeek.
 - Gunakan gaya Kumo UI dan taste-skill sebagai arah visual: surface hierarchy, token warna semantik, spacing kemas, dan micro-motion ringan.
 
 ## Keutamaan Naik Taraf Seterusnya
 
-1. Pantau Product Audit untuk siri lama yang belum ada `productTitle`.
+1. Pantau Product Audit untuk siri lama yang masih `needs_product_verification`.
 2. Tambah export/import backup untuk `work/runtime/`.
 3. Tambah pilihan tone rewrite dalam Preview Netizen: lebih soft sell, lebih deep story, atau lebih direct CTA.
 4. Tambah dashboard usage DeepSeek per run dan anggaran kos.
