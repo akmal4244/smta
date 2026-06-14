@@ -45,7 +45,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Automation Health untuk semak AI server, DeepSeek key, Pending 25/25, Blocked, publisher, dan audit issue.
 - Preview Netizen untuk semak rasa manusia sebelum publish.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
-- Admin auth untuk lindungi dashboard dan API automation sebelum sistem dibuka secara public.
+- Mode single-user local tanpa login secara default, dengan admin auth optional jika mahu public deploy.
 - CORS terkawal, CSRF token untuk POST, dan runtime backup satu klik.
 - UI refresh gaya Kumo UI dan `gpt-taste`: semantic color token, surface hierarchy, sidebar premium, table compact, focus state jelas, dan motion GSAP yang ringan.
 
@@ -123,11 +123,17 @@ http://127.0.0.1:8788
 
 ## Keselamatan Admin
 
-ThreadsMe kini melindungi semua API automation kecuali `health` dan auth endpoint.
+ThreadsMe default kepada mode single-user local kerana sistem ini digunakan oleh Akmal seorang di PC sendiri.
 
-Default production:
+Default local:
 
-- `THREADSME_AUTH_REQUIRED=true`.
+- `THREADSME_AUTH_REQUIRED=false`.
+- Dashboard dan API automation boleh jalan terus tanpa sesi admin.
+- DeepSeek key status dipaparkan terus di health/GUI.
+
+Jika mahu deploy public:
+
+- Set `THREADSME_AUTH_REQUIRED=true`.
 - Password admin boleh diset melalui GUI pada login pertama atau env `THREADSME_ADMIN_PASSWORD`.
 - Session cookie ialah `HttpOnly` + `SameSite=Lax`.
 - Semua `POST` protected perlukan CSRF token daripada login session.
@@ -293,6 +299,7 @@ ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jad
 - Automation Health kini papar jumlah cache produk dalam kad `Shopee Intel`.
 - Runtime backup kini sertakan Product Intel cache.
 - Smoke test kini menguji Product Intel cache hit dan backup cache.
+- Default auth ditukar kepada single-user local mode (`THREADSME_AUTH_REQUIRED=false`) supaya sistem Akmal jalan terus tanpa login.
 
 ### v0.9.6
 

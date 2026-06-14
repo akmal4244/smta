@@ -34,7 +34,7 @@ const threadsApiDailyPublishLimit = 250;
 const maxPostingPerDay = 25;
 const autoProductResolveLimit = Math.max(1, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_LIMIT || 8), 25));
 const autoProductMinimumConfidence = Math.max(40, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_CONFIDENCE || 62), 95));
-const authRequired = process.env.THREADSME_AUTH_REQUIRED !== "false";
+const authRequired = process.env.THREADSME_AUTH_REQUIRED === "true";
 const productIntelCacheTtlMs = Math.max(1, Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_DAYS || 14)) * 24 * 60 * 60 * 1000;
 const productIntelCacheMaxEntries = Math.max(50, Math.min(Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_MAX || 250), 1000));
 const allowedOrigins = new Set(

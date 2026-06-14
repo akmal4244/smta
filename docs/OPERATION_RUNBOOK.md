@@ -39,7 +39,7 @@ npm run deploy:xampp
 
 ## Semak AI Server
 
-Health endpoint patut pulang `ok:true`. Jika belum login, maklumat sensitif seperti `hasKey` tidak dipaparkan.
+Health endpoint patut pulang `ok:true`. Dalam mode single-user local, `hasKey` dipaparkan terus supaya status DeepSeek jelas.
 
 ```powershell
 Invoke-RestMethod -Uri http://127.0.0.1:8788/api/health -TimeoutSec 10
@@ -61,9 +61,14 @@ Jangan commit cookie Shopee. Jika `hasShopeeCookie:false`, ThreadsMe masih akan 
 
 ## Admin Auth dan CORS
 
-Default production:
+Default local:
 
-- `THREADSME_AUTH_REQUIRED=true`.
+- `THREADSME_AUTH_REQUIRED=false`.
+- Dashboard dan API automation jalan terus tanpa login kerana sistem ini digunakan oleh Akmal seorang di PC sendiri.
+
+Jika mahu public deploy:
+
+- Set `THREADSME_AUTH_REQUIRED=true`.
 - Login pertama melalui GUI akan setup password admin dan simpan hash di `work/private/admin-auth.json`.
 - Alternatif: set `THREADSME_ADMIN_PASSWORD` melalui env/server config.
 - Semua API selain `health` dan auth endpoint memerlukan session admin.

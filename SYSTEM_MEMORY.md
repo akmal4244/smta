@@ -28,8 +28,8 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Cookie Shopee jika digunakan mesti disimpan sebagai env `SHOPEE_COOKIE` atau `work/private/shopee-cookie.txt`, tidak boleh di-commit.
 - Runtime JSON aktif berada dalam `work/runtime/` dan tidak di-commit.
 - Product Intel cache aktif berada di `work/runtime/product-intel-cache.json`; cache metadata sahaja, bukan secret.
-- Dashboard/API automation dilindungi admin auth secara default melalui `THREADSME_AUTH_REQUIRED=true`.
-- Semua POST API protected perlukan CSRF token daripada session admin.
+- Dashboard/API automation default kepada single-user local mode melalui `THREADSME_AUTH_REQUIRED=false`.
+- Jika mahu public deploy, set `THREADSME_AUTH_REQUIRED=true`; semua POST API protected perlukan CSRF token daripada session admin.
 - CORS mesti dikunci kepada `THREADSME_ALLOWED_ORIGINS`; jangan guna wildcard bila public deploy.
 - Runtime backup disimpan di `work/backups/` dan tidak di-commit.
 
@@ -116,4 +116,4 @@ Snapshot ini dibuat pada `2026-06-14` dan boleh berubah apabila automasi berjala
 - Jangan palsukan status `Pending`; status itu hanya sah selepas sistem benar-benar masukkan siri ke queue aktif.
 - Jangan jadikan `Blocked` sebagai gagal. Ia cuma menunggu slot.
 - Jangan publish live ke Threads tanpa confirmation dan tanpa semakan token/User ID.
-- Jangan expose AI server ke public tanpa auth, locked CORS, dan reverse proxy yang sesuai.
+- Jangan expose AI server ke public tanpa `THREADSME_AUTH_REQUIRED=true`, locked CORS, dan reverse proxy yang sesuai.
