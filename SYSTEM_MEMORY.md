@@ -52,6 +52,7 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
   - `[REPLY 1]`
   - `[REPLY 2]`
 - Setiap bahagian maksimum `300 aksara`.
+- Sasaran panjang baharu untuk story Threads ialah `220-295 aksara` setiap bahagian, bukan 200 perkataan. Tujuannya supaya setiap post terasa lebih penuh, deep storytelling, dan sedap dibaca tanpa melepasi limit Threads.
 - `Reply 2` mesti berakhir dengan link affiliate yang tepat.
 - Gaya copywriting: santai, personal, deep storytelling, Bahasa Melayu Malaysia, sesuai dengan netizen Malaysia di Threads.
 - Elakkan claim berlebihan, ayat terlalu iklan, typo keterlaluan, dan manfaat yang tidak berkaitan dengan produk sebenar.

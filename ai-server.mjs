@@ -32,6 +32,9 @@ const threadsGraphUrl = "https://graph.threads.net/v1.0";
 const threadsScheduleLimit = 25;
 const threadsApiDailyPublishLimit = 250;
 const maxPostingPerDay = 25;
+const threadPostMaxChars = 300;
+const threadPostTargetMinChars = 220;
+const threadPostTargetMaxChars = 295;
 const autoProductResolveLimit = Math.max(1, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_LIMIT || 8), 25));
 const autoProductMinimumConfidence = Math.max(40, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_CONFIDENCE || 62), 95));
 const autoQualityRegenerateLimit = Math.max(0, Math.min(Number(process.env.THREADSME_AUTO_REGENERATE_LIMIT || 25), 25));
@@ -1610,6 +1613,8 @@ function buildPrompt(input) {
           "Elakkan claim berlebihan. Produk boleh bantu ruang nampak lebih kemas/premium, bukan selesaikan semua masalah hidup.",
           "Nada mesti terasa macam orang Malaysia bercerita di Threads: sedikit vulnerable, tidak skema, tidak terlalu salesy, ada rasa 'aku pun pernah rasa macam ni'.",
           "Pastikan ada deep storyline walaupun ringkas: watak aku, masalah kecil harian, rasa yang terpendam, titik mula berubah, kemudian produk sebagai solusi kecil.",
+          `Manfaatkan limit Threads: sasarkan ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara untuk setiap POST UTAMA, REPLY 1, dan REPLY 2. Jangan pendek sangat kecuali perlu untuk elak lebih ${threadPostMaxChars} aksara.`,
+          "Setiap post perlu rasa lengkap: 2-4 ayat pendek yang ada detail visual, rasa manusia, dan flow cerita. Jangan tulis satu ayat generic sahaja.",
           "Gunakan Bahasa Melayu Malaysia yang kemas. Boleh santai, tetapi jangan guna typo, slanga keterlaluan, ayat kasar, atau ejaan cacat seperti 'tgok', 'macan', 'ubsuasana'.",
           "Reply 2 mesti akhiri dengan affiliate link yang tepat tanpa mengubah domain, ejaan, atau karakter link.",
           "Emoji sangat minimum dan hanya jika benar-benar menambah rasa.",
@@ -1627,12 +1632,13 @@ function buildPrompt(input) {
           `Affiliate link wajib di akhir Reply 2: ${affiliateLink}`,
           `Mod auto konteks: ${autoContext}`,
           "Format setiap versi: POST UTAMA, REPLY 1, REPLY 2.",
-          "Setiap post maksimum 300 aksara termasuk ruang dan link.",
+          `Setiap post maksimum ${threadPostMaxChars} aksara termasuk ruang dan link.`,
+          `Target panjang setiap post: ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara. Ini aksara, bukan perkataan. Gunakan ruang ini untuk deep storytelling yang sedap dibaca.`,
           "Post utama mesti mula dengan hook yang buat orang berhenti scroll: rasa penat, malu kecil, harapan, atau konflik rumah yang familiar.",
           "Reply 1 kembangkan emosi cerita secara spesifik: situasi harian, benda yang selalu dipandang, rasa rumah belum siap, atau mood yang jatuh/naik.",
           "Reply 2 bawa resolusi secara lembut: tunjuk bagaimana produk dalam gambar relevan dengan cerita, kemudian CTA ikhlas dan link affiliate.",
           "Kalau produk tidak diketahui, jangan sebut ciri khusus yang mungkin salah. Jadikan Reply 2 sebagai jambatan natural: 'kalau tengah cari benda kecil untuk mula ubah ruang/rutin, boleh tengok produk ni'.",
-          "Gunakan bahasa yang menarik, ada deep storyline, tetapi kekal ringkas dan sesuai untuk Threads.",
+          "Gunakan bahasa yang menarik, ada deep storyline, padat, dan sesuai untuk netizen Malaysia di Threads. Jangan terlalu pendek, jangan macam caption iklan.",
           "Setiap versi mesti ada hook berbeza dan situasi yang terasa dekat dengan netizen Malaysia: rumah sewa, penat kerja, tetamu datang, ruang kecil, barang bersepah, bajet terhad, atau impian rumah kemas.",
           "Jangan jadikan produk sebagai hero terlalu awal. Cerita dan emosi dahulu, produk hanya masuk secara natural di Reply 2.",
           "Jangan ulang ayat CTA sama. Variasikan dengan cara ikhlas seperti 'boleh survey', 'boleh tengok', 'kalau tengah cari benda macam ni'.",
@@ -1673,7 +1679,7 @@ function attachExactAffiliateLink(text, affiliateLink) {
     .replace(/https?:\/\/\S+/g, "")
     .replace(/\s+$/g, "")
     .trim();
-  const maxBodyLength = Math.max(20, 300 - linkBlock.length);
+  const maxBodyLength = Math.max(20, threadPostMaxChars - linkBlock.length);
   const body =
     withoutLinks.length > maxBodyLength
       ? withoutLinks.slice(0, maxBodyLength).replace(/\s+\S*$/g, "").trim()
@@ -1782,9 +1788,19 @@ function auditStoryQuality(version, input, affiliateLink) {
   const hardIssues = [];
   const checks = [];
 
-  const lengthOk = Object.values(parts).every((text) => text.length > 0 && text.length <= 300);
-  checks.push({ key: "length", label: "Setiap post <300 aksara", passed: lengthOk });
-  if (!lengthOk) hardIssues.push("Ada post kosong atau melebihi 300 aksara.");
+  const lengths = Object.values(parts).map((text) => text.length);
+  const lengthOk = lengths.every((length) => length > 0 && length <= threadPostMaxChars);
+  checks.push({ key: "length", label: `Setiap post <=${threadPostMaxChars} aksara`, passed: lengthOk });
+  if (!lengthOk) hardIssues.push(`Ada post kosong atau melebihi ${threadPostMaxChars} aksara.`);
+
+  const targetLengthOk = lengths.every(
+    (length) => length >= threadPostTargetMinChars && length <= threadPostTargetMaxChars,
+  );
+  checks.push({
+    key: "target_length",
+    label: `Manfaatkan ruang ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`,
+    passed: targetLengthOk,
+  });
 
   const linkOk = exactLink ? parts.reply2.endsWith(exactLink) : /https?:\/\/\S+$/i.test(parts.reply2);
   checks.push({ key: "affiliate", label: "Reply 2 tamat dengan link affiliate", passed: linkOk });
@@ -1820,7 +1836,7 @@ function auditStoryQuality(version, input, affiliateLink) {
   };
 }
 
-function limitPostText(text, maxLength = 300) {
+function limitPostText(text, maxLength = threadPostMaxChars) {
   const clean = String(text || "")
     .replace(/\s+/g, " ")
     .trim();
@@ -1884,26 +1900,26 @@ function buildFallbackStories(input, affiliateLink) {
   const product = inferFallbackProduct(input);
   const theme = String(input.theme || "auto");
   const painHooks = [
-    "Kadang bukan kita malas. Kita cuma penat nak hadap benda sama setiap hari.",
-    "Ada hari, benda kecil pun boleh buat kepala rasa penuh.",
-    "Pelik kan, hidup nampak biasa tapi dalam hati rasa macam tak cukup ruang.",
-    "Aku pernah rasa serba tak kena walaupun benda tu nampak remeh.",
-    "Bila rutin dah padat, kita mula cari jalan paling mudah untuk rasa lega.",
+    "Kadang bukan kita malas. Kita cuma penat nak hadap benda kecil yang sama setiap hari.",
+    "Ada hari, benda remeh pun boleh buat kepala rasa penuh bila balik rumah.",
+    "Pelik kan, hidup nampak biasa tapi dalam hati rasa macam ruang sendiri pun belum cukup tenang.",
+    "Aku pernah rasa serba tak kena walaupun masalah tu nampak kecil kalau cerita dekat orang.",
+    "Bila rutin dah padat, kita mula cari benda yang boleh bagi rasa lega tanpa tambah kerja baru.",
   ];
   const hopeHooks = [
-    "Kadang perubahan besar mula dari satu keputusan kecil je.",
-    "Aku suka bila benda kecil boleh bagi rasa baru dalam hari yang biasa.",
-    "Tak semua benda kena tunggu sempurna baru kita mula.",
-    "Ada satu rasa lega bila kita jumpa cara mudah untuk bantu diri sendiri.",
-    "Rumah dan rutin tak perlu perfect. Cukup ada satu benda yang buat kita rasa lebih baik.",
+    "Kadang perubahan besar mula dari satu keputusan kecil yang kita buat diam-diam.",
+    "Aku suka bila benda kecil boleh bagi rasa baru dalam hari yang asalnya biasa-biasa je.",
+    "Tak semua benda kena tunggu sempurna baru kita mula jaga ruang dan rutin sendiri.",
+    "Ada satu rasa lega bila kita jumpa cara mudah untuk bantu diri sendiri sedikit demi sedikit.",
+    "Rumah dan rutin tak perlu perfect. Cukup ada satu benda yang buat kita rasa lebih ringan.",
   ];
   const stories = [
-    "Balik kerja, aku selalu fikir nak rehat. Tapi mata tetap nampak benda yang buat mood jatuh sikit.",
-    "Mula-mula aku biar je. Lama-lama baru perasan, benda kecil yang berulang tu yang paling banyak makan tenaga.",
-    "Aku belajar, tak semua masalah harian perlu solusi besar. Kadang cukup mula dengan satu benda yang praktikal.",
-    "Bila ada cara yang mudah, rasa macam hidup ni kurang sikit serabutnya. Tak besar pun, tapi terasa.",
-    "Yang aku cari sebenarnya bukan benda mahal. Aku cuma nak rutin yang nampak lebih ringan dan tak menyusahkan.",
-    "Ada masa kita cuma perlukan satu permulaan kecil untuk rasa macam masih boleh kawal keadaan.",
+    "Balik kerja, aku selalu fikir nak rehat. Tapi mata tetap nampak benda yang buat mood jatuh sikit. Bukan besar pun, cuma bila berulang hari-hari, rasa penat tu melekat sampai malam.",
+    "Mula-mula aku biar je sebab fikir nanti ada masa. Lama-lama baru perasan, benda kecil yang berulang tu yang paling banyak makan tenaga dan buat rumah/rutin rasa tak siap.",
+    "Aku belajar, tak semua masalah harian perlu solusi besar. Kadang yang kita perlukan cuma satu benda praktikal yang boleh buat hidup rasa tersusun sikit tanpa drama.",
+    "Bila ada cara yang mudah, rasa macam hidup ni kurang sikit serabutnya. Tak besar pun perubahan tu, tapi cukup untuk buat kita rasa ada ruang bernafas semula.",
+    "Yang aku cari sebenarnya bukan benda mahal. Aku cuma nak rutin yang nampak lebih ringan, senang dijaga, dan tak buat aku rasa kalah sebelum hari habis.",
+    "Ada masa kita cuma perlukan satu permulaan kecil untuk rasa macam masih boleh kawal keadaan. Dari situ baru datang semangat nak kemaskan benda lain satu-satu.",
   ];
   const ctas = [
     "boleh tengok sini",
@@ -1919,11 +1935,14 @@ function buildFallbackStories(input, affiliateLink) {
     const hook = useHope ? hopeHooks[index % hopeHooks.length] : painHooks[index % painHooks.length];
     const story = stories[index % stories.length];
     const cta = ctas[index % ctas.length];
+    const mainText = `${hook} Aku mula sedar benda macam ni bukan pasal nak hidup nampak sempurna, tapi pasal nak rasa tenang bila masuk ruang sendiri. Bila hati dah letih, detail kecil pun boleh jadi berat.`;
+    const reply1Text = `${story} Aku tak nak tunggu semua benda ideal baru nak berubah. Aku cuma mula dari benda yang paling dekat dengan mata, tangan, dan rutin harian. Pelan-pelan, rasa serabut tu mula kurang.`;
+    const reply2Text = `${product.bridge}, ${product.name} boleh jadi permulaan yang masuk akal. ${product.moment}. Bukan magic, tapi cukup untuk mula rasa ada perubahan kecil yang nampak dan terasa. Kalau rasa sesuai, ${cta}`;
     return {
       label: `Versi ${index + 1}`,
-      main: limitPostText(`${hook} Aku mula perasan, kalau nak rasa hidup lebih ringan, tak semestinya kena ubah semua sekaligus.`),
-      reply1: limitPostText(`${story} Dari situ aku mula pilih solusi yang kecil, senang buat, dan tak rasa membebankan.`),
-      reply2: attachExactAffiliateLink(`${product.bridge}, ${product.name} boleh jadi permulaan. ${product.moment}. Kalau rasa sesuai, ${cta}`, affiliateLink),
+      main: limitPostText(mainText, threadPostTargetMaxChars),
+      reply1: limitPostText(reply1Text, threadPostTargetMaxChars),
+      reply2: attachExactAffiliateLink(reply2Text, affiliateLink),
     };
   });
 }
