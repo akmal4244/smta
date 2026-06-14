@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | ThreadsMe |
 | Repo slug | threadsme |
-| Versi | v0.9.6 |
+| Versi | v0.9.7 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -41,6 +41,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Quality Gate sebelum story masuk jadual: relevansi produk, hook, BM Malaysia, claim, CTA, dan had 300 aksara.
 - Product Intelligence untuk cuba ekstrak tajuk/kategori daripada link Shopee, affiliate, gambar, nota, dan DeepSeek.
 - Auto Audit boleh auto isi metadata produk daripada link affiliate Shopee; siri yang cuma `story_inferred` ditahan sehingga disahkan.
+- Product Intel cache runtime supaya link affiliate yang sama tidak perlu disemak berulang selepas restart.
 - Automation Health untuk semak AI server, DeepSeek key, Pending 25/25, Blocked, publisher, dan audit issue.
 - Preview Netizen untuk semak rasa manusia sebelum publish.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
@@ -140,6 +141,20 @@ http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,http:/
 
 Jika deploy ke domain sebenar, tambah domain itu dalam `THREADSME_ALLOWED_ORIGINS` dan jangan guna wildcard.
 
+## Product Intel Cache
+
+ThreadsMe menyimpan metadata produk yang cukup yakin di:
+
+```text
+work/runtime/product-intel-cache.json
+```
+
+Default cache:
+
+- TTL: `14` hari melalui `THREADSME_PRODUCT_INTEL_CACHE_DAYS`.
+- Maksimum entry: `250` melalui `THREADSME_PRODUCT_INTEL_CACHE_MAX`.
+- Cache hanya menyimpan metadata produk, bukan cookie/token.
+
 ## API Key
 
 ThreadsMe tidak commit API key ke repo.
@@ -236,6 +251,7 @@ ThreadsMe menggunakan JSON file database supaya ringan dan mudah audit.
 | `status.json` | Snapshot status queue contoh/legacy untuk fallback static. Runtime sebenar kini disalin ke `work/runtime/status.json`. |
 | `story-runs.json` | Snapshot rekod output AI contoh/legacy untuk fallback static. Runtime sebenar kini disalin ke `work/runtime/story-runs.json`. |
 | `work/runtime/*.json` | Runtime database aktif untuk status, story runs, dan publish log. Fail ini tidak di-commit. |
+| `work/runtime/product-intel-cache.json` | Cache metadata Product Intel untuk link Shopee/affiliate yang sudah dikenal pasti. Fail ini tidak di-commit. |
 | `work/backups/*.json` | Snapshot backup runtime daripada GUI/API. Fail ini tidak di-commit. |
 | `publish-log.json` | Log publisher legacy. Runtime aktif ialah `work/runtime/publish-log.json`. Fail ini tidak di-commit. |
 | `work/private/*.json` dan `work/private/*.txt` | Token/API key private. Fail ini tidak di-commit. |
@@ -269,6 +285,14 @@ ThreadsMe kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas ThreadsMe berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.9.7
+
+- Tambah Product Intel runtime cache di `work/runtime/product-intel-cache.json`.
+- Cache metadata produk yang cukup yakin supaya link affiliate sama tidak ulang semakan Shopee/DeepSeek selepas restart.
+- Automation Health kini papar jumlah cache produk dalam kad `Shopee Intel`.
+- Runtime backup kini sertakan Product Intel cache.
+- Smoke test kini menguji Product Intel cache hit dan backup cache.
 
 ### v0.9.6
 

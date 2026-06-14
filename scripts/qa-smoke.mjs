@@ -139,6 +139,35 @@ async function run() {
     assert(story.json?.versions?.length === 2, "Generate story tidak pulang 2 versi.");
     assert(story.json?.run?.schedule?.postsPerDay === 25, "Schedule generated tidak ikut 25 posting/hari.");
 
+    const productIntelPayload = {
+      productTitle: "",
+      productCategory: "",
+      affiliateLink: "https://s.shopee.com.my/5q5IqSXkro",
+      sourceText: "Sambal Nyet Berapi 180g untuk hari malas masak, makan dengan nasi panas.",
+      imageNotes: "produk sambal ready-to-eat",
+      useAi: true,
+    };
+    const productIntelFirst = await request("/api/product-intel", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+        "x-threadsme-csrf": csrfToken,
+      },
+      body: JSON.stringify(productIntelPayload),
+    });
+    assert(productIntelFirst.response.status === 200 && productIntelFirst.json?.productTitle, "Product Intel pertama gagal.");
+    const productIntelSecond = await request("/api/product-intel", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+        "x-threadsme-csrf": csrfToken,
+      },
+      body: JSON.stringify(productIntelPayload),
+    });
+    assert(productIntelSecond.response.status === 200 && productIntelSecond.json?.cached === true, "Product Intel kedua mesti guna cache runtime.");
+
     const shopeeCookie = await request("/api/shopee-cookie/config", {
       method: "POST",
       headers: {
@@ -155,6 +184,7 @@ async function run() {
       headers: { cookie, "x-threadsme-csrf": csrfToken },
     });
     assert(backup.response.status === 200 && backup.json?.saved, "Runtime backup gagal.");
+    assert(backup.json?.backup?.productIntelCache?.entries?.length >= 1, "Backup runtime tidak sertakan Product Intel cache.");
 
     console.log("QA smoke passed");
   } finally {

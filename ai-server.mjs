@@ -19,6 +19,7 @@ const scheduleFile = process.env.THREADSME_SCHEDULE_FILE || path.join(runtimeRoo
 const storyRunsFile = process.env.THREADSME_STORY_RUNS_FILE || path.join(runtimeRoot, "story-runs.json");
 const statusFile = process.env.THREADSME_STATUS_FILE || path.join(runtimeRoot, "status.json");
 const publishLogFile = process.env.THREADSME_PUBLISH_LOG_FILE || path.join(runtimeRoot, "publish-log.json");
+const productIntelCacheFile = process.env.THREADSME_PRODUCT_INTEL_CACHE_FILE || path.join(runtimeRoot, "product-intel-cache.json");
 const backupRoot = process.env.THREADSME_BACKUP_DIR || path.join(workspaceRoot, "work", "backups");
 const threadsConfigFile = path.join(workspaceRoot, "work", "private", "threads-config.json");
 const threadsTokenFile = path.join(workspaceRoot, "work", "private", "threads-access-token.txt");
@@ -34,6 +35,8 @@ const maxPostingPerDay = 25;
 const autoProductResolveLimit = Math.max(1, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_LIMIT || 8), 25));
 const autoProductMinimumConfidence = Math.max(40, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_CONFIDENCE || 62), 95));
 const authRequired = process.env.THREADSME_AUTH_REQUIRED !== "false";
+const productIntelCacheTtlMs = Math.max(1, Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_DAYS || 14)) * 24 * 60 * 60 * 1000;
+const productIntelCacheMaxEntries = Math.max(50, Math.min(Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_MAX || 250), 1000));
 const allowedOrigins = new Set(
   String(
     process.env.THREADSME_ALLOWED_ORIGINS ||
@@ -494,6 +497,7 @@ async function ensureRuntimeFiles() {
   });
   await ensureRuntimeFile(storyRunsFile, legacyStoryRunsFile, { runs: [] });
   await ensureRuntimeFile(publishLogFile, legacyPublishLogFile, { entries: [] });
+  await ensureRuntimeFile(productIntelCacheFile, path.join(here, "product-intel-cache.json"), { entries: [] });
 }
 
 async function readPublishLog() {
@@ -2482,6 +2486,101 @@ function shopeeProductKey(ids) {
   return ids?.shopId && ids?.itemId ? `${ids.shopId}:${ids.itemId}` : "";
 }
 
+function normalizeProductIntelCacheUrl(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    url.hash = "";
+    ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "fbclid", "gclid"].forEach((key) => url.searchParams.delete(key));
+    return url.href.replace(/\/$/, "");
+  } catch {
+    return String(value || "").trim();
+  }
+}
+
+function getProductIntelCacheKey(input = {}) {
+  const urls = [input.affiliateLink, input.productUrl, input.imageUrl]
+    .map(normalizeProductIntelCacheUrl)
+    .filter(Boolean);
+  for (const urlValue of urls) {
+    const ids = parseShopeeProductIds(urlValue);
+    const productKey = shopeeProductKey(ids);
+    if (productKey) return `shopee:${productKey}`;
+  }
+  if (urls[0]) return `url:${urls[0]}`;
+  const title = cleanTitleCandidate(input.productTitle || "");
+  return title ? `title:${title.toLowerCase()}` : "";
+}
+
+async function readProductIntelCache() {
+  const data = await readJsonFile(productIntelCacheFile, { entries: [] });
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  const now = Date.now();
+  return entries
+    .filter((entry) => entry?.key && Number(entry.expiresAt || 0) > now)
+    .slice(-productIntelCacheMaxEntries);
+}
+
+async function writeProductIntelCache(entries) {
+  const sorted = entries
+    .filter((entry) => entry?.key && entry?.intel?.productTitle)
+    .sort((a, b) => Number(a.createdAtMs || 0) - Number(b.createdAtMs || 0))
+    .slice(-productIntelCacheMaxEntries);
+  await writeJsonFile(productIntelCacheFile, { version: 1, updatedAt: `${malaysiaNow()} GMT+8`, entries: sorted });
+}
+
+async function getCachedProductIntel(cacheKey) {
+  if (!cacheKey) return null;
+  const entries = await readProductIntelCache();
+  const entry = entries.find((item) => item.key === cacheKey);
+  if (!entry) return null;
+  return {
+    ...entry.intel,
+    cached: true,
+    cacheKey,
+    cacheStoredAt: entry.createdAt || "",
+    warnings: [...(entry.intel?.warnings || []), "Product Intel guna cache runtime untuk link yang sama."].slice(0, 10),
+  };
+}
+
+async function saveProductIntelCache(cacheKey, intel) {
+  if (!cacheKey || !intel?.productTitle || Number(intel.confidence || 0) < 45) return;
+  const now = Date.now();
+  const entries = (await readProductIntelCache()).filter((entry) => entry.key !== cacheKey);
+  entries.push({
+    key: cacheKey,
+    createdAtMs: now,
+    expiresAt: now + productIntelCacheTtlMs,
+    createdAt: `${malaysiaNow()} GMT+8`,
+    intel: {
+      productTitle: intel.productTitle,
+      productCategory: intel.productCategory || "",
+      confidence: Number(intel.confidence || 0),
+      source: intel.source || "",
+      evidenceLevel: intel.evidenceLevel || "not_enough_info",
+      linkVerified: Boolean(intel.linkVerified),
+      storyAligned: Boolean(intel.storyAligned),
+      sourceEvidence: intel.sourceEvidence || "",
+      autoResolvable: Boolean(intel.autoResolvable),
+      shopeeProductIds: Array.isArray(intel.shopeeProductIds) ? intel.shopeeProductIds.slice(0, 3) : [],
+      candidates: Array.isArray(intel.candidates) ? intel.candidates.slice(0, 5) : [],
+      warnings: Array.isArray(intel.warnings) ? intel.warnings.slice(0, 6) : [],
+      note: intel.note || "",
+    },
+  });
+  await writeProductIntelCache(entries);
+}
+
+async function getProductIntelCacheStatus() {
+  const entries = await readProductIntelCache();
+  return {
+    file: productIntelCacheFile.replace(workspaceRoot, "").replace(/^[/\\]/, ""),
+    entries: entries.length,
+    maxEntries: productIntelCacheMaxEntries,
+    ttlDays: Math.round(productIntelCacheTtlMs / (24 * 60 * 60 * 1000)),
+    latestAt: entries[entries.length - 1]?.createdAt || "",
+  };
+}
+
 function normalizeShopeeItemPayload(payload) {
   const data = payload?.data || payload?.item || payload;
   const item = data?.item || data?.product_info || data;
@@ -2685,6 +2784,11 @@ async function inspectProductIntel(input) {
   const imageNotes = String(input.imageNotes || "").trim();
   const providedTitle = cleanTitleCandidate(input.productTitle || "");
   const providedCategory = cleanTitleCandidate(input.productCategory || "");
+  const cacheKey = getProductIntelCacheKey(input);
+  if (!providedTitle && input.skipCache !== true) {
+    const cached = await getCachedProductIntel(cacheKey);
+    if (cached?.productTitle) return cached;
+  }
   const notes = [sourceText, imageNotes, providedTitle, providedCategory].filter(Boolean).join(" ");
   const candidates = [];
   const warnings = [];
@@ -2866,7 +2970,7 @@ async function inspectProductIntel(input) {
   const autoResolvable = Boolean(productTitle) && confidence >= autoProductMinimumConfidence;
   const linkVerified = Boolean(productTitle) && verified && confidence >= autoProductMinimumConfidence;
 
-  return {
+  const result = {
     productTitle,
     productCategory,
     confidence: productTitle ? confidence : 20,
@@ -2885,6 +2989,8 @@ async function inspectProductIntel(input) {
         : "Produk dicadangkan daripada story/AI, tetapi belum disahkan penuh oleh Shopee. Semak jika copy nampak pelik."
       : "ThreadsMe belum dapat kenal produk dengan yakin. Shopee mungkin block detail tanpa sesi login/cookie.",
   };
+  await saveProductIntelCache(cacheKey, result);
+  return result;
 }
 
 async function getPublisherStatus() {
@@ -2922,12 +3028,13 @@ async function updateShopeeCookieConfig(input) {
 }
 
 async function buildRuntimeBackup() {
-  const [scheduleData, statusData, runs, publisher, shopee] = await Promise.all([
+  const [scheduleData, statusData, runs, publisher, shopee, productIntelCache] = await Promise.all([
     readJsonFile(scheduleFile, { posts: [] }),
     readJsonFile(statusFile, {}),
     readStoryRuns(),
     getPublisherStatus(),
     getShopeeCookieStatus(),
+    readProductIntelCache(),
   ]);
   return {
     type: "threadsme-runtime-backup",
@@ -2941,6 +3048,10 @@ async function buildRuntimeBackup() {
     schedule: scheduleData,
     status: statusData,
     storyRuns: runs,
+    productIntelCache: {
+      version: 1,
+      entries: productIntelCache,
+    },
     publisher: {
       config: publisher.config,
       dueNumbers: publisher.dueNumbers,
@@ -3100,11 +3211,12 @@ const server = createServer(async (req, res) => {
         hasKey = false;
       }
       const hasShopeeCookie = Boolean(await getShopeeCookie());
+      const productIntelCache = await getProductIntelCacheStatus();
       sendJson(res, 200, {
         ok: true,
         runtimeRoot,
         deepseek: { hasKey, model: "deepseek-v4-flash" },
-        shopee: { hasCookie: hasShopeeCookie },
+        shopee: { hasCookie: hasShopeeCookie, productIntelCache },
         queue: {
           totalPosts: Array.isArray(scheduleData.posts) ? scheduleData.posts.length : 0,
           pending: uniqueSortedNumbers(statusData.scheduled).length,

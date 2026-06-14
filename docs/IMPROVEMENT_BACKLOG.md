@@ -4,7 +4,7 @@ Fail ini menyimpan cadangan tambah baik yang sudah dikenal pasti supaya kerja se
 
 ## P0 - Kualiti Produk dan Story
 
-Status v0.9.6: asas `Auto Audit Produk`, `Tindakan Saya`, `Product Audit`, preview ayat semasa, `Quality Gate`, `Product Intelligence`, auto product resolver Shopee/DeepSeek, `Automation Health`, `Preview Netizen`, runtime `work/runtime/`, render DOM selamat, admin auth, locked CORS, CSRF, runtime backup, local GSAP, WebP preview, dan smoke test sudah dibina. Backlog ini kini fokus kepada penambahbaikan selepas modul asas stabil.
+Status v0.9.7: asas `Auto Audit Produk`, `Tindakan Saya`, `Product Audit`, preview ayat semasa, `Quality Gate`, `Product Intelligence`, auto product resolver Shopee/DeepSeek, Product Intel runtime cache, `Automation Health`, `Preview Netizen`, runtime `work/runtime/`, render DOM selamat, admin auth, locked CORS, CSRF, runtime backup, local GSAP, WebP preview, dan smoke test sudah dibina. Backlog ini kini fokus kepada penambahbaikan selepas modul asas stabil.
 
 ### Product Audit
 
@@ -48,7 +48,7 @@ Masalah:
 Cadangan:
 
 - Tambah wizard cookie/login Shopee yang lebih mesra daripada textarea private semasa.
-- Tambah cache product intel runtime yang tahan restart supaya semakan link sama tidak ulang network call.
+- Tambah butang clear/refresh Product Intel cache untuk link tertentu.
 - Paparkan beberapa calon tajuk produk untuk user pilih.
 
 ## P1 - Keselamatan Frontend

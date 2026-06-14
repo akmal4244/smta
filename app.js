@@ -974,7 +974,11 @@ function renderAutomationHealth() {
     {
       label: "Shopee Intel",
       value: health.shopee?.hasCookie ? "Cookie OK" : "Tanpa cookie",
-      detail: health.shopee?.hasCookie ? "Boleh cuba endpoint login" : "Fallback metadata + DeepSeek",
+      detail: health.shopee?.productIntelCache
+        ? `${health.shopee.productIntelCache.entries || 0} cache produk`
+        : health.shopee?.hasCookie
+          ? "Boleh cuba endpoint login"
+          : "Fallback metadata + DeepSeek",
       tone: health.shopee?.hasCookie ? "good" : "warn",
     },
     {

@@ -121,9 +121,24 @@ work/runtime/threads-schedule.json
 work/runtime/status.json
 work/runtime/story-runs.json
 work/runtime/publish-log.json
+work/runtime/product-intel-cache.json
 ```
 
 Fail root `threads_flexi_marble_schedule.json`, `status.json` dan `story-runs.json` kekal sebagai snapshot/fallback static. Jangan risau jika `work/runtime/` berubah ketika server hidup; folder itu diabaikan git.
+
+## Product Intel Cache
+
+Product Intel cache mengurangkan semakan Shopee/DeepSeek berulang untuk link affiliate yang sama.
+
+Tetapan:
+
+```text
+THREADSME_PRODUCT_INTEL_CACHE_FILE=work/runtime/product-intel-cache.json
+THREADSME_PRODUCT_INTEL_CACHE_DAYS=14
+THREADSME_PRODUCT_INTEL_CACHE_MAX=250
+```
+
+Jika cache nampak stale, padam fail `work/runtime/product-intel-cache.json` semasa server berhenti. Server akan cipta semula fail kosong.
 
 ## Backup Runtime
 
