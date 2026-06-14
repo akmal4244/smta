@@ -3,38 +3,38 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Sistem Marvis Threads Auto (SMTA)</title>
+    <title>ThreadsMe</title>
     <meta
       name="description"
-      content="Sistem Marvis Threads Auto (SMTA) untuk jana story affiliate, bina jadual Threads, dan pantau status posting automatik."
+      content="ThreadsMe untuk jana story affiliate, bina jadual Threads, dan pantau status posting automatik."
     />
     <meta name="theme-color" content="#f3f6fa" />
-    <meta property="og:title" content="Sistem Marvis Threads Auto (SMTA)" />
+    <meta property="og:title" content="ThreadsMe" />
     <meta
       property="og:description"
       content="Dashboard automasi Threads untuk story produk, jadual 25 posting sehari, status queue, dan publisher API."
     />
     <meta property="og:type" content="website" />
-    <link rel="icon" href="./assets/smta-favicon.svg?v=2" type="image/svg+xml" />
+    <link rel="icon" href="./assets/threadsme-favicon.svg?v=2" type="image/svg+xml" />
     <link rel="stylesheet" href="./styles.css?v=10" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">Langkau ke kandungan utama</a>
     <div class="system-shell">
-      <aside class="side-menu" aria-label="Menu SMTA">
+      <aside class="side-menu" aria-label="Menu ThreadsMe">
         <div class="brand-block">
           <span class="brand-mark">
-            <img src="./assets/smta-logo.svg" alt="Logo SMTA" />
+            <img src="./assets/threadsme-logo.svg" alt="Logo ThreadsMe" />
           </span>
           <div>
-            <strong>Sistem Marvis Threads Auto (SMTA)</strong>
-            <small>ID: SMTA-LOCAL</small>
+            <strong>ThreadsMe</strong>
+            <small>ID: ThreadsMe-LOCAL</small>
           </div>
         </div>
 
         <p class="menu-section">Menu Pentadbir</p>
 
-        <nav class="side-nav" aria-label="Navigasi SMTA">
+        <nav class="side-nav" aria-label="Navigasi ThreadsMe">
           <button class="nav-item active" type="button" data-view-target="dashboard">
             <span aria-hidden="true">R</span>
             <strong>Ringkasan</strong>
@@ -50,6 +50,11 @@
             <strong>Jadual Threads</strong>
             <small>Kalendar queue</small>
           </button>
+          <button class="nav-item" type="button" data-view-target="audit">
+            <span aria-hidden="true">P</span>
+            <strong>Audit Produk</strong>
+            <small>Quality gate</small>
+          </button>
           <button class="nav-item" type="button" data-view-target="publisher">
             <span aria-hidden="true">A</span>
             <strong>Automasi Live</strong>
@@ -59,7 +64,7 @@
 
         <div class="side-note">
           <strong>Had Threads</strong>
-          <span>SMTA guna jadual 25 posting/hari dan pantau maksimum 25 siri Pending aktif. Baki Blocked auto naik bila slot kosong.</span>
+          <span>ThreadsMe guna jadual 25 posting/hari dan pantau maksimum 25 siri Pending aktif. Baki Blocked auto naik bila slot kosong.</span>
         </div>
 
         <footer class="side-credit" aria-label="Kredit sistem">
@@ -74,7 +79,7 @@
           <section class="topbar reveal" aria-label="Ringkasan sistem">
             <div>
               <p class="eyebrow">Pentadbir</p>
-              <h1>Papan Pemuka SMTA</h1>
+              <h1>Papan Pemuka ThreadsMe</h1>
               <p class="subtitle">Ringkasan status sistem, queue Threads, dan jadual posting automatik.</p>
             </div>
             <div class="status-card" aria-live="polite">
@@ -134,9 +139,9 @@
                 <h2>Blocked naik sendiri bila slot kosong</h2>
               </div>
               <span id="unblockNextWindow">Semak queue</span>
-              <p id="unblockSummary">SMTA sedang sync status queue dan kira slot kosong berdasarkan jadual posting.</p>
+              <p id="unblockSummary">ThreadsMe sedang sync status queue dan kira slot kosong berdasarkan jadual posting.</p>
             </article>
-            <div class="automation-rail" aria-label="Peraturan automasi SMTA">
+            <div class="automation-rail" aria-label="Peraturan automasi ThreadsMe">
               <article>
                 <span>Slot</span>
                 <strong>Had 25 aktif</strong>
@@ -154,6 +159,17 @@
               </article>
             </div>
           </section>
+
+          <section class="health-panel reveal" aria-label="Automation health">
+            <div class="panel-heading compact-heading">
+              <div>
+                <h2>Automation Health</h2>
+                <p>Semakan pantas server, AI, queue, audit produk, dan publisher.</p>
+              </div>
+              <span id="healthLastSync">Menunggu sync</span>
+            </div>
+            <div class="health-grid" id="automationHealthGrid"></div>
+          </section>
         </section>
 
         <section class="page-panel" data-view="story" aria-label="Jana story" hidden>
@@ -161,7 +177,7 @@
             <div>
               <p class="eyebrow">AI Story</p>
               <h1>Jana Story Produk</h1>
-              <p class="subtitle">Tajuk produk wajib. Brief boleh ringkas; SMTA akan bina angle, story, dan CTA ikut produk sebenar.</p>
+              <p class="subtitle">Tajuk produk wajib. Brief boleh ringkas; ThreadsMe akan bina angle, story, dan CTA ikut produk sebenar.</p>
             </div>
             <span id="aiStatus">Semak server AI</span>
           </header>
@@ -235,11 +251,15 @@
                   <span>Link affiliate produk</span>
                   <input id="productAffiliateLink" type="url" value="https://s.shopee.com.my/7VDqSOoKf3" />
                 </label>
+                <div class="product-intel-strip" aria-live="polite">
+                  <button id="productIntelButton" type="button">Auto semak produk Shopee</button>
+                  <span id="productIntelNote">Isi link affiliate/gambar, kemudian semak tajuk produk sebelum jana story.</span>
+                </div>
                 <label class="field-stack">
                   <span>Nota gambar / produk optional</span>
                   <textarea
                     id="imageNotes"
-                    placeholder="Kalau tahu, tulis ringkas. Kalau tak tahu, biarkan kosong dan SMTA akan cipta angle selamat berdasarkan gambar/link produk."
+                    placeholder="Kalau tahu, tulis ringkas. Kalau tak tahu, biarkan kosong dan ThreadsMe akan cipta angle selamat berdasarkan gambar/link produk."
                   ></textarea>
                 </label>
                 <div class="story-actions-wide">
@@ -298,6 +318,7 @@
                 <option value="failed">Gagal</option>
                 <option value="blocked">Blocked</option>
                 <option value="prepared">Disediakan</option>
+                <option value="review">Perlu Semak</option>
                 <option value="issue">Ada isu</option>
               </select>
             </label>
@@ -372,10 +393,82 @@
 
               <div class="thread-stack" id="threadStack"></div>
 
+              <section class="netizen-preview" aria-label="Preview Netizen">
+                <div class="panel-heading compact-heading">
+                  <div>
+                    <h2>Preview Netizen</h2>
+                    <p>Semak rasa manusia, relevansi produk dan tone sebelum publish.</p>
+                  </div>
+                  <span id="netizenPreviewNote">Menunggu siri</span>
+                </div>
+                <div id="netizenPreviewList" class="netizen-preview-list"></div>
+              </section>
+
               <div class="action-strip">
                 <button id="copyThreadButton" type="button">Salin siri ini</button>
                 <button id="copyReply2Button" type="button">Salin CTA reply</button>
                 <a id="affiliateLink" href="https://s.shopee.com.my/7VDqSOoKf3" target="_blank" rel="noreferrer">Buka pautan Shopee</a>
+              </div>
+            </article>
+          </section>
+        </section>
+
+        <section class="page-panel" data-view="audit" aria-label="Audit Produk" hidden>
+          <header class="module-header reveal">
+            <div>
+              <p class="eyebrow">Product Audit</p>
+              <h1>Audit Produk & Quality Gate</h1>
+              <p class="subtitle">Semak siri lama yang tiada tajuk produk, baiki metadata, dan regenerate story supaya copywriting tidak lari daripada produk sebenar.</p>
+            </div>
+            <span id="auditSummaryBadge">Memuatkan audit</span>
+          </header>
+
+          <section class="audit-layout reveal" aria-label="Audit produk">
+            <article class="audit-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Isu Dikesan</h2>
+                  <p>Fokus pada siri generated lama, story melebihi 300 aksara, atau Quality Gate yang perlukan semakan.</p>
+                </div>
+                <span id="auditIssueCount">0 isu</span>
+              </div>
+              <div class="audit-metrics" id="auditMetrics"></div>
+              <div id="auditIssueList" class="audit-issue-list"></div>
+            </article>
+
+            <article class="audit-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>Baiki Batch</h2>
+                  <p>Pilih nombor siri seperti `26-35` atau `26, 27, 30`, kemudian simpan metadata atau regenerate story.</p>
+                </div>
+                <span id="auditActionStatus">Sedia</span>
+              </div>
+              <div class="audit-form">
+                <label class="field-stack">
+                  <span>Nombor siri</span>
+                  <input id="auditNumbers" type="text" placeholder="Contoh: 26-35" autocomplete="off" />
+                </label>
+                <label class="field-stack">
+                  <span>Tajuk produk sebenar</span>
+                  <input id="auditProductTitle" type="text" placeholder="Contoh: Sambal Nyet Berapi by Khairulaming 180g" autocomplete="off" />
+                </label>
+                <label class="field-stack">
+                  <span>Kategori / kegunaan</span>
+                  <input id="auditProductCategory" type="text" placeholder="Contoh: sambal ready-to-eat, lauk cepat, penambah selera" autocomplete="off" />
+                </label>
+                <label class="field-stack">
+                  <span>Link affiliate</span>
+                  <input id="auditAffiliateLink" type="url" placeholder="https://s.shopee.com.my/..." autocomplete="off" />
+                </label>
+                <label class="field-stack">
+                  <span>Nota audit</span>
+                  <textarea id="auditNotes" placeholder="Tulis konteks produk, manfaat sebenar, audience, atau masalah story lama."></textarea>
+                </label>
+                <div class="audit-actions">
+                  <button id="auditSaveMetadataButton" type="button">Simpan metadata</button>
+                  <button id="auditRegenerateButton" type="button">Regenerate story</button>
+                </div>
               </div>
             </article>
           </section>
@@ -386,7 +479,7 @@
             <div>
               <p class="eyebrow">Threads API</p>
               <h1>Automasi Live</h1>
-              <p class="subtitle">Sambungkan Threads API apabila mahu SMTA publish siri Pending yang sudah sampai masa.</p>
+              <p class="subtitle">Sambungkan Threads API apabila mahu ThreadsMe publish siri Pending yang sudah sampai masa.</p>
             </div>
             <span id="publisherModeBadge">Dry-run</span>
           </header>
@@ -494,6 +587,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
-    <script src="./app.js?v=15"></script>
+    <script src="./app.js?v=16"></script>
   </body>
 </html>

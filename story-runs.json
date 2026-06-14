@@ -13,24 +13,24 @@
         {
           "id": "run-1781335679708-v1",
           "label": "Versi 1",
-          "status": "blocked",
+          "status": "pending",
           "scheduleNumber": 36,
           "slot": "2026-06-15 10:20",
           "mainLength": 160,
           "reply1Length": 158,
           "reply2Length": 185,
-          "updatedAt": "2026-06-14 08:02 GMT+8"
+          "updatedAt": "2026-06-14 10:20 GMT+8"
         },
         {
           "id": "run-1781335679708-v2",
           "label": "Versi 2",
-          "status": "blocked",
+          "status": "pending",
           "scheduleNumber": 37,
           "slot": "2026-06-15 11:00",
           "mainLength": 128,
           "reply1Length": 130,
           "reply2Length": 175,
-          "updatedAt": "2026-06-14 08:02 GMT+8"
+          "updatedAt": "2026-06-14 11:00 GMT+8"
         },
         {
           "id": "run-1781335679708-v3",
@@ -160,7 +160,7 @@
       "productName": "flexi-marble-sheet.png",
       "imageName": "flexi-marble-sheet.png",
       "imageSource": "url",
-      "imageUrl": "http://localhost/smta/assets/flexi-marble-sheet.png",
+      "imageUrl": "http://localhost/threadsme/assets/flexi-marble-sheet.png",
       "affiliateLink": "https://s.shopee.com.my/7VDqSOoKf3",
       "postsPerDay": 25,
       "versions": [
@@ -468,7 +468,7 @@
       "productName": "flexi-marble-sheet.png",
       "imageName": "flexi-marble-sheet.png",
       "imageSource": "url",
-      "imageUrl": "http://localhost/smta/assets/flexi-marble-sheet.png",
+      "imageUrl": "http://localhost/threadsme/assets/flexi-marble-sheet.png",
       "affiliateLink": "https://s.shopee.com.my/7VDqSOoKf3",
       "postsPerDay": 25,
       "versions": [

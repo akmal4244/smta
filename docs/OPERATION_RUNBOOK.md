@@ -1,14 +1,14 @@
-# Runbook Operasi SMTA
+# Runbook Operasi ThreadsMe
 
-Runbook ini menerangkan cara menjalankan, menyemak, dan memulihkan Sistem Marvis Threads Auto (SMTA).
+Runbook ini menerangkan cara menjalankan, menyemak, dan memulihkan ThreadsMe.
 
 ## URL Penting
 
 | Tujuan | URL |
 | --- | --- |
-| GUI rasmi | `http://localhost/smta/` |
+| GUI rasmi | `http://localhost/threadsme/` |
 | AI health | `http://127.0.0.1:8788/api/health` |
-| Node dev fallback | `http://localhost:8791/smta/` |
+| Node dev fallback | `http://localhost:8791/threadsme/` |
 
 ## Arahan Harian
 
@@ -57,16 +57,37 @@ Jangan commit fail key ke repo.
 2. Isi `Kategori / kegunaan produk`.
 3. Masukkan link gambar atau upload/paste gambar jika ada.
 4. Isi link affiliate produk.
-5. Pilih jumlah posting sehari, default semasa ialah `25 posting / hari`.
-6. Klik `Auto cipta & jadualkan`.
-7. Semak output dan status di Jadual Threads.
+5. Klik `Auto semak produk Shopee` jika link/nota belum jelas.
+6. Pilih jumlah posting sehari, default semasa ialah `25 posting / hari`.
+7. Klik `Auto cipta & jadualkan`.
+8. Semak output dan status di Jadual Threads.
 
 Jika tajuk produk kosong, sistem mesti menolak generate.
+
+## Product Audit dan Quality Gate
+
+- Siri yang tidak cukup relevan akan ditahan sebagai `Perlu Semak`.
+- `Perlu Semak` tidak patut masuk Pending atau publisher live.
+- Guna menu `Audit Produk` untuk pilih batch seperti `26-35`, isi tajuk/kategori produk sebenar, kemudian klik `Simpan metadata` atau `Regenerate story`.
+- Selepas story dibaiki, automation sync seterusnya akan kira semula slot Pending.
+
+## Runtime Data
+
+Runtime aktif berada dalam `work/runtime/`:
+
+```text
+work/runtime/status.json
+work/runtime/story-runs.json
+work/runtime/publish-log.json
+```
+
+Fail root `status.json` dan `story-runs.json` kekal sebagai snapshot/fallback static. Jangan risau jika `work/runtime/` berubah ketika server hidup; folder itu diabaikan git.
 
 ## Status Queue
 
 - `Pending`: queue aktif.
 - `Blocked`: belum gagal, menunggu slot kosong.
+- `Perlu Semak`: story ditahan Quality Gate dan perlu audit produk.
 - `Lulus`: posted/passed.
 - `Gagal`: gagal diproses atau ditanda gagal.
 
@@ -74,10 +95,10 @@ Queue aktif maksimum ialah `25`. Jika ada lebih banyak siri, baki akan kekal `Bl
 
 ## Pulihkan Blocked
 
-SMTA patut auto promote `Blocked` kepada `Pending` bila slot scheduled kosong. Jika tidak berlaku:
+ThreadsMe patut auto promote `Blocked` kepada `Pending` bila slot scheduled kosong. Jika tidak berlaku:
 
 1. Semak AI server masih hidup.
-2. Semak `status.json` valid.
+2. Semak `work/runtime/status.json` valid jika server sudah pernah hidup.
 3. Semak `automationMode:true`.
 4. Semak `automationLimit:25`.
 5. Jalankan semula AI server.
@@ -109,4 +130,4 @@ Pastikan fail private tidak staged:
 git status --short
 ```
 
-Nota: `status.json` boleh berubah setiap 60 saat kerana automation worker. Jika perubahan hanya `lastAutomationAt`, itu runtime normal.
+Nota: runtime yang berubah setiap 60 saat sepatutnya berada dalam `work/runtime/`, bukan root repo.

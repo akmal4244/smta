@@ -1,27 +1,27 @@
-# Sistem Marvis Threads Auto (SMTA)
+# ThreadsMe
 
-**Sistem Marvis Threads Auto (SMTA)** ialah sistem automasi kandungan Threads untuk affiliate marketing. Sistem ini membantu jana story produk dalam Bahasa Melayu Malaysia, susun jadual 25 posting sehari, pantau status queue, dan sediakan publisher automatik melalui Threads API.
+**ThreadsMe** ialah sistem automasi kandungan Threads untuk affiliate marketing. Sistem ini membantu jana story produk dalam Bahasa Melayu Malaysia, susun jadual 25 posting sehari, pantau status queue, dan sediakan publisher automatik melalui Threads API.
 
 Nama rasmi sistem:
 
 | Item | Maklumat |
 | --- | --- |
-| Nama sistem | Sistem Marvis Threads Auto (SMTA) |
-| Repo slug | smta |
-| Versi | v0.8.0 |
+| Nama sistem | ThreadsMe |
+| Repo slug | threadsme |
+| Versi | v0.9.0 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
-| Localhost rasmi | `http://localhost/smta/` |
+| Localhost rasmi | `http://localhost/threadsme/` |
 
 ## Fail Ingatan dan Operasi
 
-Fail berikut menjadi rujukan utama bila kerja SMTA disambung semula:
+Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 
 | Fail | Tujuan |
 | --- | --- |
 | `SYSTEM_MEMORY.md` | Ingatan sistem: tetapan rasmi, peraturan story, status queue, prinsip design, dan larangan penting. |
-| `docs/OPERATION_RUNBOOK.md` | Cara menjalankan, menyemak, deploy, dan memulihkan SMTA. |
+| `docs/OPERATION_RUNBOOK.md` | Cara menjalankan, menyemak, deploy, dan memulihkan ThreadsMe. |
 | `docs/IMPROVEMENT_BACKLOG.md` | Senarai cadangan tambah baik yang sudah dikenal pasti dan boleh dibuat selepas ini. |
 
 ## Fungsi Utama
@@ -30,10 +30,15 @@ Fail berikut menjadi rujukan utama bila kerja SMTA disambung semula:
 - Storytelling deep storyline untuk netizen Malaysia.
 - Input produk melalui tajuk produk wajib, kategori/kegunaan produk, gambar upload, paste gambar, link gambar, nota produk, dan link affiliate.
 - Pilihan posting sehari termasuk `25 posting / hari`.
-- Auto cipta story dan terus masukkan ke jadual SMTA.
+- Auto cipta story dan terus masukkan ke jadual ThreadsMe.
 - Kalendar jadual harian dengan semakan 25 slot sehari.
-- Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, dan `Disediakan`.
+- Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, `Disediakan`, dan `Perlu Semak`.
 - Auto promote `Blocked` kepada `Pending` bila slot schedule kosong.
+- Product Audit untuk baiki siri lama yang tiada tajuk produk atau story tidak relevan.
+- Quality Gate sebelum story masuk jadual: relevansi produk, hook, BM Malaysia, claim, CTA, dan had 300 aksara.
+- Product Intelligence untuk cuba ekstrak tajuk/kategori daripada link Shopee, affiliate, gambar, atau nota.
+- Automation Health untuk semak AI server, DeepSeek key, Pending 25/25, Blocked, publisher, dan audit issue.
+- Preview Netizen untuk semak rasa manusia sebelum publish.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
 - UI refresh gaya Kumo UI dan `gpt-taste`: semantic color token, surface hierarchy, sidebar premium, table compact, focus state jelas, dan motion GSAP yang ringan.
 
@@ -48,7 +53,7 @@ Cadangan input minimum:
 - `Nota gambar / produk`: konteks emosi atau situasi, contoh `sesuai untuk nasi panas, telur, ayam goreng, hari malas masak`.
 - `Link affiliate produk`: link CTA wajib yang akan diletakkan di akhir Reply 2.
 
-SMTA akan tolak proses generate jika tajuk produk kosong. Prompt DeepSeek juga dikunci supaya AI tidak tukar kategori produk atau reka manfaat yang tidak berkaitan.
+ThreadsMe akan tolak proses generate jika tajuk produk kosong. Prompt DeepSeek juga dikunci supaya AI tidak tukar kategori produk atau reka manfaat yang tidak berkaitan.
 
 ## Cara Jalankan
 
@@ -68,7 +73,7 @@ npm run start
 URL rasmi localhost pada PC ini menggunakan Apache/XAMPP:
 
 ```text
-http://localhost/smta/
+http://localhost/threadsme/
 ```
 
 Untuk deploy semula fail static ke XAMPP:
@@ -84,7 +89,7 @@ npm run start:dev
 ```
 
 ```text
-http://localhost:8791/smta/
+http://localhost:8791/threadsme/
 ```
 
 Jalankan server AI dalam terminal lain:
@@ -107,7 +112,7 @@ http://127.0.0.1:8788
 
 ## API Key
 
-SMTA tidak commit API key ke repo.
+ThreadsMe tidak commit API key ke repo.
 
 Pilihan DeepSeek:
 
@@ -132,6 +137,7 @@ Fail private yang diabaikan git:
 
 ```text
 work/private/
+work/runtime/
 publish-log.json
 .env
 ```
@@ -139,11 +145,11 @@ publish-log.json
 ## Struktur Sistem
 
 ```text
-smta/
+threadsme/
 |-- assets/
 |   |-- flexi-marble-sheet.png
-|   |-- smta-favicon.svg
-|   `-- smta-logo.svg
+|   |-- threadsme-favicon.svg
+|   `-- threadsme-logo.svg
 |-- docs/
 |   |-- IMPROVEMENT_BACKLOG.md
 |   `-- OPERATION_RUNBOOK.md
@@ -166,14 +172,15 @@ smta/
 
 ## Database JSON
 
-SMTA menggunakan JSON file database supaya ringan dan mudah audit.
+ThreadsMe menggunakan JSON file database supaya ringan dan mudah audit.
 
 | Fail | Fungsi |
 | --- | --- |
 | `threads_flexi_marble_schedule.json` | Senarai siri posting, slot jadual, CTA, dan affiliate link. |
-| `status.json` | Status queue semasa: scheduled, posted, failed, remaining, dan publisher config ringkas. |
-| `story-runs.json` | Rekod output story yang dijana oleh AI. |
-| `publish-log.json` | Log publisher runtime. Fail ini tidak di-commit. |
+| `status.json` | Snapshot status queue contoh/legacy untuk fallback static. Runtime sebenar kini disalin ke `work/runtime/status.json`. |
+| `story-runs.json` | Snapshot rekod output AI contoh/legacy untuk fallback static. Runtime sebenar kini disalin ke `work/runtime/story-runs.json`. |
+| `work/runtime/*.json` | Runtime database aktif untuk status, story runs, dan publish log. Fail ini tidak di-commit. |
+| `publish-log.json` | Log publisher legacy. Runtime aktif ialah `work/runtime/publish-log.json`. Fail ini tidak di-commit. |
 | `work/private/*.json` dan `work/private/*.txt` | Token/API key private. Fail ini tidak di-commit. |
 
 ## Workflow Automation
@@ -192,7 +199,7 @@ flowchart TD
 
 ## Prinsip Reka Bentuk
 
-SMTA kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
+ThreadsMe kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 
 - Semantic token untuk warna, teks, border, status dan surface.
 - Surface hierarchy yang jelas untuk sidebar, dashboard, calendar, queue, preview dan publisher.
@@ -202,9 +209,20 @@ SMTA kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 
 ## Nota Had Threads
 
-SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas SMTA berjaya memasukkan siri ke queue automation.
+ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas ThreadsMe berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.9.0
+
+- Tukar nama sistem rasmi kepada ThreadsMe di UI, docs, env, aset, dan route localhost.
+- Tukar URL rasmi kepada `http://localhost/threadsme/`.
+- Tambah modul `Audit Produk` untuk batch metadata dan regenerate story.
+- Tambah `Quality Gate` sebelum story masuk jadual supaya output yang tidak relevan ditahan sebagai `Perlu Semak`.
+- Tambah `Product Intelligence` untuk cuba kenal pasti tajuk/kategori produk daripada link Shopee/affiliate/gambar/nota.
+- Tambah panel `Automation Health` dan `Preview Netizen`.
+- Pindahkan runtime JSON aktif ke `work/runtime/` supaya repo tidak kerap dirty kerana automation.
+- Tukar render dinamik frontend kepada DOM builder + `textContent` untuk elak layout rosak oleh teks AI/user.
 
 ### v0.8.0
 
@@ -222,30 +240,30 @@ SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual b
 - Fix fungsi Jana Story apabila AI server offline atau DeepSeek key tiada.
 - Tambah fallback story generator tempatan supaya output masih dijana dan terus masuk Jadual Threads.
 - Tambah endpoint `/api/system-data` supaya GUI XAMPP baca jadual/status dinamik dari AI server.
-- Tambah script `npm run ai:hidden` untuk hidupkan SMTA AI server di background.
+- Tambah script `npm run ai:hidden` untuk hidupkan ThreadsMe AI server di background.
 - Update mesej error frontend supaya tidak hanya papar `Failed to fetch`.
 
 ### v0.7.7
 
-- Guna prinsip Kumo UI pada SMTA tanpa menukar stack vanilla: semantic tokens, surface hierarchy, table/resource-list pattern, focus states, dan badges status yang lebih jelas.
+- Guna prinsip Kumo UI pada ThreadsMe tanpa menukar stack vanilla: semantic tokens, surface hierarchy, table/resource-list pattern, focus states, dan badges status yang lebih jelas.
 - Ganti CSS lama yang bertindih dengan design system lebih kecil, konsisten, dan mudah dibaca.
 - Kemas cache CSS kepada `styles.css?v=10` dan tambah `data-mode="light"` serta `data-theme="kumo"` pada HTML.
 
 ### v0.7.6
 
-- Tukar default SMTA kepada `25 posting / hari`.
+- Tukar default ThreadsMe kepada `25 posting / hari`.
 - Tambah option `25 posting / hari` di Jana Story dan `25 siri` di automasi publisher.
 - Kalendar Jadual Threads kini menyemak sasaran 25 slot sehari.
 
 ### v0.7.5
 
-- Guna `redesign-skill` untuk audit dan polish targeted pada sistem SMTA.
+- Guna `redesign-skill` untuk audit dan polish targeted pada sistem ThreadsMe.
 - Tambah skip-link, meta description, OG metadata, state kosong yang lebih kemas, dan busy state untuk butang AI.
 - Buang pautan palsu apabila affiliate link tiada dan kemaskan surface visual supaya dashboard lebih profesional.
 
 ### v0.7.4
 
-- Kunci responsive mobile supaya panel SMTA tidak melebar keluar viewport.
+- Kunci responsive mobile supaya panel ThreadsMe tidak melebar keluar viewport.
 - Topbar dan metrik dipaksa kepada satu kolum pada skrin kecil untuk bacaan lebih selesa.
 
 ### v0.7.3
@@ -256,7 +274,7 @@ SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual b
 ### v0.7.2
 
 - Tambah status story dijana.
-- Sambungkan output AI kepada jadual tempatan SMTA.
+- Sambungkan output AI kepada jadual tempatan ThreadsMe.
 
 ### v0.7.1
 
@@ -264,4 +282,4 @@ SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual b
 
 ### v0.7.0
 
-- Release awal Sistem Marvis Threads Auto (SMTA).
+- Release awal ThreadsMe.

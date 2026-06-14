@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $source = Split-Path -Parent $PSScriptRoot
-$target = "C:\xampp\htdocs\smta"
+$target = "C:\xampp\htdocs\threadsme"
 
 New-Item -ItemType Directory -Force -Path $target | Out-Null
 
@@ -20,4 +20,4 @@ foreach ($item in $items) {
 
 Copy-Item -LiteralPath (Join-Path $source "assets") -Destination (Join-Path $target "assets") -Recurse -Force
 
-Write-Host "SMTA deployed to http://localhost/smta/"
+Write-Host "ThreadsMe deployed to http://localhost/threadsme/"

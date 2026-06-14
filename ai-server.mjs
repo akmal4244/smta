@@ -1,19 +1,23 @@
 import { createServer } from "node:http";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const workspaceRoot = process.env.SMTA_WORKSPACE_ROOT || here;
+const workspaceRoot = process.env.THREADSME_WORKSPACE_ROOT || here;
+const runtimeRoot = process.env.THREADSME_RUNTIME_DIR || path.join(workspaceRoot, "work", "runtime");
 const defaultKeyFile = path.join(workspaceRoot, "work", "private", "deepseek.key");
 const keyFile = process.env.DEEPSEEK_API_KEY_FILE || defaultKeyFile;
-const storyRunsFile = path.join(here, "story-runs.json");
+const legacyStoryRunsFile = path.join(here, "story-runs.json");
 const scheduleFile = path.join(here, "threads_flexi_marble_schedule.json");
-const statusFile = path.join(here, "status.json");
-const publishLogFile = path.join(here, "publish-log.json");
+const legacyStatusFile = path.join(here, "status.json");
+const legacyPublishLogFile = path.join(here, "publish-log.json");
+const storyRunsFile = process.env.THREADSME_STORY_RUNS_FILE || path.join(runtimeRoot, "story-runs.json");
+const statusFile = process.env.THREADSME_STATUS_FILE || path.join(runtimeRoot, "status.json");
+const publishLogFile = process.env.THREADSME_PUBLISH_LOG_FILE || path.join(runtimeRoot, "publish-log.json");
 const threadsConfigFile = path.join(workspaceRoot, "work", "private", "threads-config.json");
 const threadsTokenFile = path.join(workspaceRoot, "work", "private", "threads-access-token.txt");
-const port = Number(process.env.SMTA_AI_PORT || process.argv[2] || 8788);
+const port = Number(process.env.THREADSME_AI_PORT || process.argv[2] || 8788);
 const host = "127.0.0.1";
 const deepseekUrl = "https://api.deepseek.com/chat/completions";
 const threadsGraphUrl = "https://graph.threads.net/v1.0";
@@ -206,7 +210,8 @@ async function syncStoryRunsWithStatus(statusData, scheduleData = null) {
         changed = true;
       }
       let nextStatus = version.status || "pending";
-      if (failedSet.has(number)) nextStatus = "failed";
+      if (post?.qualityStatus === "review") nextStatus = "review";
+      else if (failedSet.has(number)) nextStatus = "failed";
       else if (postedSet.has(number)) nextStatus = "passed";
       else if (scheduledSet.has(number)) nextStatus = "pending";
       else if (remainingSet.has(number) || preparedSet.has(number)) nextStatus = "blocked";
@@ -234,6 +239,41 @@ async function readJsonFile(file, fallback) {
 async function writeJsonFile(file, value) {
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+async function fileExists(file) {
+  try {
+    await access(file);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ensureRuntimeFile(runtimeFile, legacyFile, fallback) {
+  if (await fileExists(runtimeFile)) return;
+  await mkdir(path.dirname(runtimeFile), { recursive: true });
+  if (await fileExists(legacyFile)) {
+    await copyFile(legacyFile, runtimeFile);
+    return;
+  }
+  await writeJsonFile(runtimeFile, fallback);
+}
+
+async function ensureRuntimeFiles() {
+  await ensureRuntimeFile(statusFile, legacyStatusFile, {
+    systemStatus: "Automasi aktif",
+    systemNote: "Runtime status ThreadsMe baru diwujudkan.",
+    scheduled: [],
+    posted: [],
+    failed: [],
+    prepared: [],
+    remaining: [],
+    automationMode: true,
+    automationLimit: threadsScheduleLimit,
+  });
+  await ensureRuntimeFile(storyRunsFile, legacyStoryRunsFile, { runs: [] });
+  await ensureRuntimeFile(publishLogFile, legacyPublishLogFile, { entries: [] });
 }
 
 async function readPublishLog() {
@@ -369,6 +409,14 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
   const preparedSet = new Set(previousPrepared);
   const remainingSet = new Set(previousRemaining);
 
+  posts.forEach((post, index) => {
+    if (post?.qualityStatus !== "review") return;
+    const number = index + 1;
+    scheduledSet.delete(number);
+    remainingSet.delete(number);
+    preparedSet.add(number);
+  });
+
   const knownNumbers = new Set([
     ...scheduledSet,
     ...postedSet,
@@ -382,6 +430,10 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
     if (knownNumbers.has(number) || failedSet.has(number)) return;
     const time = parseScheduleSlot(post.slot).getTime();
     if (!Number.isFinite(time)) return;
+    if (post.qualityStatus === "review") {
+      preparedSet.add(number);
+      return;
+    }
     if (time <= nowMs && autoCompletePastSlots) postedSet.add(number);
     else remainingSet.add(number);
   });
@@ -391,6 +443,7 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
     for (const number of previousScheduled) {
       const post = posts[number - 1];
       if (!post || failedSet.has(number) || postedSet.has(number)) continue;
+      if (post.qualityStatus === "review") continue;
       if (parseScheduleSlot(post.slot).getTime() <= nowMs) {
         postedSet.add(number);
         postedNow.push(number);
@@ -401,6 +454,7 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
   const activeScheduled = uniqueSortedNumbers([...scheduledSet]).filter((number) => {
     const post = posts[number - 1];
     if (!post || postedSet.has(number) || failedSet.has(number)) return false;
+    if (post.qualityStatus === "review") return false;
     return parseScheduleSlot(post.slot).getTime() > nowMs;
   });
 
@@ -408,6 +462,7 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
   const blockedPool = uniqueSortedNumbers([...remainingSet, ...preparedSet]).filter((number) => {
     const post = posts[number - 1];
     if (!post || scheduledSet.has(number) || postedSet.has(number) || failedSet.has(number)) return false;
+    if (post.qualityStatus === "review") return false;
     return parseScheduleSlot(post.slot).getTime() > nowMs;
   });
 
@@ -419,7 +474,10 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
   }
 
   const scheduled = uniqueSortedNumbers([...scheduledSet]).filter(
-    (number) => !postedSet.has(number) && !failedSet.has(number),
+    (number) => {
+      const post = posts[number - 1];
+      return post?.qualityStatus !== "review" && !postedSet.has(number) && !failedSet.has(number);
+    },
   );
   const posted = uniqueSortedNumbers([...postedSet]);
   const failed = uniqueSortedNumbers([...failedSet]);
@@ -432,12 +490,12 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
 
   const futureActiveCount = uniqueSortedNumbers([...scheduledSet]).filter((number) => {
     const post = posts[number - 1];
-    return post && !postedSet.has(number) && !failedSet.has(number) && parseScheduleSlot(post.slot).getTime() > nowMs;
+    return post && post.qualityStatus !== "review" && !postedSet.has(number) && !failedSet.has(number) && parseScheduleSlot(post.slot).getTime() > nowMs;
   }).length;
   const blockedCount = remaining.length + prepared.length;
 
   let systemStatus = "Automasi aktif";
-  let systemNote = "SMTA sedang pantau jadual Threads dan status queue secara automatik.";
+  let systemNote = "ThreadsMe sedang pantau jadual Threads dan status queue secara automatik.";
   if (promoted.length) {
     systemStatus = "Automasi aktif - auto Pending";
     systemNote = `${formatNumberRange(promoted)} ditukar automatik daripada Blocked kepada Pending kerana slot jadual sudah kosong.`;
@@ -446,7 +504,7 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
     systemNote = `${formatNumberRange(postedNow)} ditanda Lulus kerana masa posting sudah lepas.`;
   } else if (blockedCount) {
     systemStatus = "Automasi aktif - menunggu slot";
-    systemNote = `${blockedCount} siri masih Blocked. SMTA akan auto jadikan Pending bila slot jadual kosong.`;
+    systemNote = `${blockedCount} siri masih Blocked. ThreadsMe akan auto jadikan Pending bila slot jadual kosong.`;
   } else {
     systemStatus = "Automasi aktif - semua dipantau";
     systemNote = "Tiada siri Blocked. Semua siri sedang berada dalam status Lulus, Pending, atau Gagal.";
@@ -664,6 +722,9 @@ async function publishScheduleNumber(number, { force = false, config = null, has
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
   const post = posts[number - 1];
   if (!post) throw new Error(`Siri ${number} tidak wujud dalam jadual.`);
+  if (post.qualityStatus === "review") {
+    return { skipped: true, reason: "Siri masih Perlu Semak dan tidak akan dipublish sehingga lulus Quality Gate.", number };
+  }
 
   const slotTime = parseScheduleSlot(post.slot).getTime();
   const isDue = Number.isFinite(slotTime) && slotTime <= Date.now();
@@ -758,7 +819,7 @@ async function runThreadsPublisherDue({ scheduleData, statusData, config, hasTok
   };
 }
 
-async function runMtaAutomation() {
+async function runThreadsMeAutomation() {
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const statusData = await readJsonFile(statusFile, {});
   const threadsConfig = await readThreadsConfig();
@@ -785,7 +846,7 @@ async function scheduleGeneratedVersions(input, result, runId) {
   const scheduleData = await readJsonFile(scheduleFile, {
     timezone: "Asia/Kuala_Lumpur",
     affiliate_link: String(input.affiliateLink || "https://s.shopee.com.my/7VDqSOoKf3").trim(),
-    notes: "SMTA generated schedule.",
+    notes: "ThreadsMe generated schedule.",
     posts: [],
   });
   const statusData = await readJsonFile(statusFile, {});
@@ -793,12 +854,17 @@ async function scheduleGeneratedVersions(input, result, runId) {
   const versions = Array.isArray(result.versions) ? result.versions : [];
   const affiliateLink = String(input.affiliateLink || scheduleData.affiliate_link || "https://s.shopee.com.my/7VDqSOoKf3").trim();
   const postsPerDay = Math.max(1, Math.min(Number(input.postsPerDay || versions.length || 5), maxPostingPerDay));
-  const slots = buildScheduleSlots(posts, versions.length, postsPerDay);
+  const qualityReports = versions.map((version) => auditStoryQuality(version, input, affiliateLink));
+  const schedulableVersions = versions
+    .map((version, index) => ({ version, index, quality: qualityReports[index] }))
+    .filter((item) => item.quality.status === "passed");
+  const slots = buildScheduleSlots(posts, schedulableVersions.length, postsPerDay);
   const startNumber = posts.length + 1;
+  const itemsByIndex = Array.from({ length: versions.length }, () => null);
 
-  const items = versions.map((version, index) => {
-    const number = startNumber + index;
-    const slot = slots[index];
+  const items = schedulableVersions.map(({ version, index, quality }, scheduledIndex) => {
+    const number = startNumber + scheduledIndex;
+    const slot = slots[scheduledIndex];
     posts.push({
       slot,
       main: version.main,
@@ -810,21 +876,33 @@ async function scheduleGeneratedVersions(input, result, runId) {
       generatedLabel: version.label || `Versi ${index + 1}`,
       postsPerDay,
       createdAt: `${malaysiaNow()} GMT+8`,
+      productTitle: String(input.productTitle || "").trim(),
+      productCategory: String(input.productCategory || "").trim(),
+      qualityStatus: quality.status,
+      qualityScore: quality.score,
+      qualityChecks: quality.checks,
     });
-    return {
+    const item = {
       number,
       slot,
       affiliateLink,
       queueStatus: "blocked",
+      originalIndex: index,
+      quality,
     };
+    itemsByIndex[index] = item;
+    return item;
   });
 
   const queuedNumbers = items.map((item) => item.number);
+  const reviewCount = qualityReports.filter((quality) => quality.status === "review").length;
   const updatedStatus = {
     ...statusData,
     remaining: uniqueSortedNumbers([...(statusData.remaining || []), ...queuedNumbers]),
-    systemStatus: "Automasi aktif - story dijadualkan",
-    systemNote: `${formatNumberRange(queuedNumbers)} berjaya dijana dan dimasukkan ke Jadual Threads. SMTA akan pantau ikut slot dan limit ${threadsScheduleLimit} active scheduled.`,
+    systemStatus: reviewCount ? "Quality Gate - perlu semak" : "Automasi aktif - story dijadualkan",
+    systemNote: queuedNumbers.length
+      ? `${formatNumberRange(queuedNumbers)} berjaya dijana dan dimasukkan ke Jadual Threads. ${reviewCount ? `${reviewCount} versi ditahan sebagai Perlu Semak.` : "Semua versi lulus Quality Gate."}`
+      : `${reviewCount} versi ditahan sebagai Perlu Semak. Tiada siri dimasukkan ke Jadual Threads.`,
     lastGeneratedScheduleAt: `${malaysiaNow()} GMT+8`,
   };
 
@@ -854,6 +932,9 @@ async function scheduleGeneratedVersions(input, result, runId) {
 
   return {
     items,
+    itemsByIndex,
+    qualityReports,
+    reviewCount,
     postsPerDay,
     activeScheduledLimit: threadsScheduleLimit,
     apiDailyPublishLimit: threadsApiDailyPublishLimit,
@@ -995,6 +1076,95 @@ function enforceGeneratedStoryRules(versions, affiliateLink) {
   }));
 }
 
+function tokenizeProductText(value) {
+  const stopwords = new Set([
+    "dan",
+    "atau",
+    "yang",
+    "untuk",
+    "dengan",
+    "produk",
+    "original",
+    "ready",
+    "stock",
+    "stok",
+    "free",
+    "shipping",
+    "murah",
+    "malaysia",
+    "by",
+    "the",
+    "of",
+    "ini",
+    "ni",
+  ]);
+  return Array.from(
+    new Set(
+      String(value || "")
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/g, " ")
+        .split(/[^a-z0-9]+/i)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 3 && !stopwords.has(token)),
+    ),
+  );
+}
+
+function auditStoryQuality(version, input, affiliateLink) {
+  const productTitle = String(input.productTitle || "").trim();
+  const productCategory = String(input.productCategory || "").trim();
+  const exactLink = String(affiliateLink || input.affiliateLink || "").trim();
+  const parts = {
+    main: String(version.main || "").trim(),
+    reply1: String(version.reply1 || "").trim(),
+    reply2: String(version.reply2 || "").trim(),
+  };
+  const fullText = `${parts.main} ${parts.reply1} ${parts.reply2}`.toLowerCase();
+  const productTokens = tokenizeProductText(`${productTitle} ${productCategory}`);
+  const matchedProductTokens = productTokens.filter((token) => fullText.includes(token));
+  const claimPattern = /\b(confirm|konfem|jamin|guarantee|100%|sembuh|rawat|hilang terus|paling murah|termurah|viral gila|wajib beli)\b/i;
+  const typoPattern = /\b(tgok|macan|ubsuasana|mmg|x\s?yah|takde|sngt)\b/i;
+  const hardIssues = [];
+  const checks = [];
+
+  const lengthOk = Object.values(parts).every((text) => text.length > 0 && text.length <= 300);
+  checks.push({ key: "length", label: "Setiap post <300 aksara", passed: lengthOk });
+  if (!lengthOk) hardIssues.push("Ada post kosong atau melebihi 300 aksara.");
+
+  const linkOk = exactLink ? parts.reply2.endsWith(exactLink) : /https?:\/\/\S+$/i.test(parts.reply2);
+  checks.push({ key: "affiliate", label: "Reply 2 tamat dengan link affiliate", passed: linkOk });
+  if (!linkOk) hardIssues.push("Reply 2 tidak tamat dengan link affiliate tepat.");
+
+  const relevanceOk = !productTokens.length || matchedProductTokens.length >= Math.min(2, productTokens.length);
+  checks.push({ key: "relevance", label: "Relevan dengan tajuk/kategori produk", passed: relevanceOk });
+  if (!relevanceOk) hardIssues.push("Story tidak cukup menyebut konteks produk sebenar.");
+
+  const hookOk = parts.main.length >= 45 && !/^(produk ini|barang ini|jom beli|murah|sale)/i.test(parts.main);
+  checks.push({ key: "hook", label: "Hook manusia, bukan iklan keras", passed: hookOk });
+
+  const languageOk = !typoPattern.test(fullText);
+  checks.push({ key: "language", label: "Bahasa Melayu Malaysia kemas", passed: languageOk });
+
+  const claimOk = !claimPattern.test(fullText);
+  checks.push({ key: "claims", label: "Tiada claim pelik atau berlebihan", passed: claimOk });
+  if (!claimOk) hardIssues.push("Ada claim berlebihan atau terlalu menjual.");
+
+  const storyOk = /\b(aku|kita|rumah|hari|rasa|penat|malam|pagi|balik|makan|dapur|kerja)\b/i.test(fullText);
+  checks.push({ key: "story", label: "Ada rasa cerita harian", passed: storyOk });
+
+  const passedCount = checks.filter((check) => check.passed).length;
+  const score = Math.round((passedCount / checks.length) * 100);
+  const status = hardIssues.length ? "review" : "passed";
+  return {
+    status,
+    score,
+    checks,
+    reasons: hardIssues,
+    matchedProductTokens,
+    reviewedAt: `${malaysiaNow()} GMT+8`,
+  };
+}
+
 function limitPostText(text, maxLength = 300) {
   const clean = String(text || "")
     .replace(/\s+/g, " ")
@@ -1122,7 +1292,7 @@ async function generateStory(input) {
       versions: buildFallbackStories(input, affiliateLink),
       usage: { provider: "local_fallback", reason: "missing_deepseek_key" },
       fallback: true,
-      fallbackReason: "DeepSeek API key tiada. SMTA guna fallback tempatan.",
+      fallbackReason: "DeepSeek API key tiada. ThreadsMe guna fallback tempatan.",
     };
   }
 
@@ -1164,7 +1334,7 @@ async function generateStory(input) {
       versions: buildFallbackStories(input, affiliateLink),
       usage: { provider: "local_fallback", reason: "deepseek_failed", error: error.message },
       fallback: true,
-      fallbackReason: `DeepSeek gagal (${error.message}). SMTA guna fallback tempatan.`,
+      fallbackReason: `DeepSeek gagal (${error.message}). ThreadsMe guna fallback tempatan.`,
     };
   }
 }
@@ -1189,16 +1359,24 @@ async function saveStoryRun(input, result) {
     imageUrl,
     affiliateLink,
     postsPerDay: schedule.postsPerDay || Number(input.postsPerDay || 5),
-    versions: result.versions.map((version, index) => ({
-      id: `${runId}-v${index + 1}`,
-      label: version.label || `Versi ${index + 1}`,
-      status: schedule.items[index]?.queueStatus || "pending",
-      scheduleNumber: schedule.items[index]?.number || null,
-      slot: schedule.items[index]?.slot || "",
-      mainLength: version.main.length,
-      reply1Length: version.reply1.length,
-      reply2Length: version.reply2.length,
-    })),
+    versions: result.versions.map((version, index) => {
+      const scheduledItem = schedule.itemsByIndex?.[index] || null;
+      const quality = schedule.qualityReports?.[index] || auditStoryQuality(version, input, affiliateLink);
+      return {
+        id: `${runId}-v${index + 1}`,
+        label: version.label || `Versi ${index + 1}`,
+        status: quality.status === "review" ? "review" : scheduledItem?.queueStatus || "blocked",
+        scheduleNumber: scheduledItem?.number || null,
+        slot: scheduledItem?.slot || "",
+        mainLength: version.main.length,
+        reply1Length: version.reply1.length,
+        reply2Length: version.reply2.length,
+        qualityStatus: quality.status,
+        qualityScore: quality.score,
+        qualityChecks: quality.checks,
+        qualityReasons: quality.reasons,
+      };
+    }),
     schedule,
   };
   runs.push(run);
@@ -1207,7 +1385,7 @@ async function saveStoryRun(input, result) {
 }
 
 async function updateStoryRunStatus(versionId, status) {
-  const allowed = new Set(["pending", "passed", "failed"]);
+  const allowed = new Set(["pending", "passed", "failed", "review"]);
   if (!allowed.has(status)) throw new Error("Invalid status");
   const runs = await readStoryRuns();
   const statusData = await readJsonFile(statusFile, {});
@@ -1245,10 +1423,14 @@ async function updateStoryRunStatus(versionId, status) {
       updatedStatus.failed = addNumber(updatedStatus.failed, scheduleNumber);
       updatedStatus.systemStatus = "Status manual - Gagal";
       updatedStatus.systemNote = `Siri ${scheduleNumber} ditanda Gagal daripada Status story dijana.`;
+    } else if (status === "review") {
+      updatedStatus.prepared = addNumber(updatedStatus.prepared, scheduleNumber);
+      updatedStatus.systemStatus = "Status manual - Perlu Semak";
+      updatedStatus.systemNote = `Siri ${scheduleNumber} ditahan sebagai Perlu Semak sebelum masuk queue aktif.`;
     } else {
       updatedStatus.remaining = addNumber(updatedStatus.remaining, scheduleNumber);
       updatedStatus.systemStatus = "Status manual - mohon Pending";
-      updatedStatus.systemNote = `Siri ${scheduleNumber} diminta masuk Pending. SMTA hanya akan tukar jika slot scheduled benar-benar kosong.`;
+      updatedStatus.systemNote = `Siri ${scheduleNumber} diminta masuk Pending. ThreadsMe hanya akan tukar jika slot scheduled benar-benar kosong.`;
     }
 
     const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
@@ -1271,6 +1453,355 @@ async function updateStoryRunStatus(versionId, status) {
 
   await writeStoryRuns(runs);
   return { runs, status: updatedStatus };
+}
+
+function parseNumberList(value) {
+  const numbers = new Set();
+  for (const part of String(value || "").split(",")) {
+    const clean = part.trim();
+    if (!clean) continue;
+    const rangeMatch = clean.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      const min = Math.min(start, end);
+      const max = Math.max(start, end);
+      for (let number = min; number <= max; number += 1) numbers.add(number);
+      continue;
+    }
+    const number = Number(clean);
+    if (Number.isInteger(number) && number > 0) numbers.add(number);
+  }
+  return Array.from(numbers).sort((a, b) => a - b);
+}
+
+function productAuditSummary(scheduleData, runs) {
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const missingProductTitle = [];
+  const reviewItems = [];
+  const overLimit = [];
+  const generated = [];
+
+  posts.forEach((post, index) => {
+    const number = index + 1;
+    if (post.source === "generated") generated.push(number);
+    if (post.source === "generated" && !String(post.productTitle || "").trim()) {
+      missingProductTitle.push(number);
+    }
+    if (post.qualityStatus === "review") reviewItems.push(number);
+    for (const key of ["main", "reply1", "reply2"]) {
+      if (String(post[key] || "").length > 300) overLimit.push({ number, key, length: String(post[key] || "").length });
+    }
+  });
+
+  const runReviewItems = [];
+  for (const run of runs) {
+    for (const version of run.versions || []) {
+      if (version.status === "review") {
+        runReviewItems.push({
+          runId: run.id,
+          versionId: version.id,
+          label: version.label,
+          productName: run.productName,
+          qualityScore: version.qualityScore,
+          reasons: version.qualityReasons || [],
+        });
+      }
+    }
+  }
+
+  return {
+    totalPosts: posts.length,
+    generatedCount: generated.length,
+    missingProductTitle,
+    missingProductTitleCount: missingProductTitle.length,
+    reviewItems,
+    reviewCount: reviewItems.length + runReviewItems.length,
+    overLimit,
+    overLimitCount: overLimit.length,
+    runReviewItems,
+  };
+}
+
+async function getProductAudit() {
+  const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+  const runs = await readStoryRuns();
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const summary = productAuditSummary(scheduleData, runs);
+  const issueNumbers = uniqueSortedNumbers([
+    ...summary.missingProductTitle,
+    ...summary.reviewItems,
+    ...summary.overLimit.map((item) => item.number),
+  ]);
+  const items = issueNumbers.slice(0, 120).map((number) => {
+    const post = posts[number - 1] || {};
+    return {
+      number,
+      slot: post.slot || "",
+      label: post.generatedLabel || `Siri ${number}`,
+      productTitle: post.productTitle || "",
+      productCategory: post.productCategory || "",
+      affiliateLink: post.affiliateLink || scheduleData.affiliate_link || "",
+      issue: !post.productTitle
+        ? "Tiada tajuk produk"
+        : post.qualityStatus === "review"
+          ? "Perlu Semak Quality Gate"
+          : "Had aksara / metadata",
+      snippet: String(post.main || "").slice(0, 180),
+      qualityStatus: post.qualityStatus || "",
+      qualityScore: post.qualityScore || null,
+    };
+  });
+  return { summary, items };
+}
+
+async function updateProductAudit(input) {
+  const numbers = parseNumberList(input.numbers);
+  if (!numbers.length) throw new Error("Pilih nombor siri untuk diaudit.");
+  const productTitle = String(input.productTitle || "").trim();
+  if (!productTitle) throw new Error("Tajuk produk wajib untuk audit.");
+  const productCategory = String(input.productCategory || "").trim();
+  const affiliateLink = String(input.affiliateLink || "").trim();
+  const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const runs = await readStoryRuns();
+  const updatedNumbers = [];
+
+  for (const number of numbers) {
+    const post = posts[number - 1];
+    if (!post) continue;
+    post.productTitle = productTitle;
+    post.productCategory = productCategory;
+    if (affiliateLink) post.affiliateLink = affiliateLink;
+    post.productAuditAt = `${malaysiaNow()} GMT+8`;
+    post.productAuditNote = String(input.note || "Metadata produk dikemas kini melalui Product Audit.").trim();
+    const quality = auditStoryQuality(post, { productTitle, productCategory, affiliateLink: post.affiliateLink }, post.affiliateLink);
+    post.qualityStatus = quality.status;
+    post.qualityScore = quality.score;
+    post.qualityChecks = quality.checks;
+    if (quality.status === "review") post.qualityReasons = quality.reasons;
+    updatedNumbers.push(number);
+  }
+
+  for (const run of runs) {
+    let runTouched = false;
+    for (const version of run.versions || []) {
+      const number = Number(version.scheduleNumber);
+      if (!updatedNumbers.includes(number)) continue;
+      version.productTitle = productTitle;
+      version.productCategory = productCategory;
+      version.updatedAt = `${malaysiaNow()} GMT+8`;
+      runTouched = true;
+    }
+    if (runTouched) {
+      run.productTitle = run.productTitle || productTitle;
+      run.productCategory = run.productCategory || productCategory;
+      run.productAuditAt = `${malaysiaNow()} GMT+8`;
+    }
+  }
+
+  scheduleData.posts = posts;
+  scheduleData.lastProductAuditAt = `${malaysiaNow()} GMT+8`;
+  scheduleData.lastProductAuditNote = `${formatNumberRange(updatedNumbers)} metadata produk dikemas kini.`;
+  await writeJsonFile(scheduleFile, scheduleData);
+  await writeStoryRuns(runs);
+  return { updatedNumbers, ...(await getProductAudit()) };
+}
+
+async function regenerateProductAudit(input) {
+  const numbers = parseNumberList(input.numbers);
+  if (!numbers.length) throw new Error("Pilih nombor siri untuk regenerate.");
+  const productTitle = String(input.productTitle || "").trim();
+  if (!productTitle) throw new Error("Tajuk produk wajib untuk regenerate.");
+  const productCategory = String(input.productCategory || "").trim();
+  const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const firstPost = posts[numbers[0] - 1] || {};
+  const affiliateLink = String(input.affiliateLink || firstPost.affiliateLink || scheduleData.affiliate_link || "").trim();
+  const result = await generateStory({
+    productTitle,
+    productCategory,
+    sourceText: input.sourceText || "",
+    imageNotes: input.note || "",
+    imageUrl: input.imageUrl || firstPost.imageUrl || "",
+    theme: input.theme || "auto",
+    versions: numbers.length,
+    postsPerDay: numbers.length,
+    affiliateLink,
+  });
+  const runs = await readStoryRuns();
+  const updatedNumbers = [];
+
+  numbers.forEach((number, index) => {
+    const post = posts[number - 1];
+    const version = result.versions[index];
+    if (!post || !version) return;
+    const quality = auditStoryQuality(version, { productTitle, productCategory, affiliateLink }, affiliateLink);
+    post.main = version.main;
+    post.reply1 = version.reply1;
+    post.reply2 = version.reply2;
+    post.productTitle = productTitle;
+    post.productCategory = productCategory;
+    post.affiliateLink = affiliateLink || post.affiliateLink;
+    post.regeneratedAt = `${malaysiaNow()} GMT+8`;
+    post.regenerationReason = "Regenerated melalui Product Audit supaya story selari dengan produk.";
+    post.qualityStatus = quality.status;
+    post.qualityScore = quality.score;
+    post.qualityChecks = quality.checks;
+    post.qualityReasons = quality.reasons;
+    updatedNumbers.push(number);
+  });
+
+  for (const run of runs) {
+    let runTouched = false;
+    for (const version of run.versions || []) {
+      const number = Number(version.scheduleNumber);
+      const post = posts[number - 1];
+      if (!updatedNumbers.includes(number) || !post) continue;
+      version.mainLength = String(post.main || "").length;
+      version.reply1Length = String(post.reply1 || "").length;
+      version.reply2Length = String(post.reply2 || "").length;
+      version.productTitle = productTitle;
+      version.productCategory = productCategory;
+      version.qualityStatus = post.qualityStatus;
+      version.qualityScore = post.qualityScore;
+      version.qualityChecks = post.qualityChecks;
+      version.qualityReasons = post.qualityReasons;
+      version.updatedAt = `${malaysiaNow()} GMT+8`;
+      if (post.qualityStatus === "review") version.status = "review";
+      runTouched = true;
+    }
+    if (runTouched) {
+      run.productTitle = run.productTitle || productTitle;
+      run.productCategory = run.productCategory || productCategory;
+      run.regeneratedAt = `${malaysiaNow()} GMT+8`;
+    }
+  }
+
+  scheduleData.posts = posts;
+  scheduleData.lastProductRegenerationAt = `${malaysiaNow()} GMT+8`;
+  scheduleData.lastProductRegenerationNote = `${formatNumberRange(updatedNumbers)} regenerated melalui Product Audit.`;
+  await writeJsonFile(scheduleFile, scheduleData);
+  await writeStoryRuns(runs);
+  return { updatedNumbers, fallback: result.fallback, usage: result.usage, ...(await getProductAudit()) };
+}
+
+function cleanTitleCandidate(value) {
+  return String(value || "")
+    .replace(/\s*[\|-]\s*Shopee.*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function inferProductCategoryFromText(text) {
+  const lower = String(text || "").toLowerCase();
+  if (/sambal|cili|chili|sos|pedas|lauk|makan/.test(lower)) {
+    return "sambal ready-to-eat, lauk cepat, penambah selera";
+  }
+  if (/marble|wallpaper|dinding|sheet|dekor|deco/.test(lower)) {
+    return "dekorasi rumah, kemasan dinding, projek DIY";
+  }
+  if (/lampu|light|led|fairy/.test(lower)) {
+    return "lampu dekorasi, suasana bilik, pencahayaan kecil";
+  }
+  if (/organizer|storage|rak|kotak|susun/.test(lower)) {
+    return "organizer rumah, simpanan barang, kemas ruang";
+  }
+  return "";
+}
+
+function extractHtmlMeta(html) {
+  const title = cleanTitleCandidate(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "");
+  const ogTitle = cleanTitleCandidate(html.match(/property=["']og:title["'][^>]*content=["']([^"']+)["']/i)?.[1] || "");
+  const description = cleanTitleCandidate(
+    html.match(/name=["']description["'][^>]*content=["']([^"']+)["']/i)?.[1] ||
+      html.match(/property=["']og:description["'][^>]*content=["']([^"']+)["']/i)?.[1] ||
+      "",
+  );
+  return { title: ogTitle || title, description };
+}
+
+function titleFromUrlPath(urlValue) {
+  try {
+    const url = new URL(urlValue);
+    const decoded = decodeURIComponent(url.pathname)
+      .replace(/\.[a-z0-9]+$/i, "")
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    return cleanTitleCandidate(decoded);
+  } catch {
+    return "";
+  }
+}
+
+async function inspectProductIntel(input) {
+  const urls = [input.affiliateLink, input.productUrl, input.imageUrl]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  const sourceText = String(input.sourceText || "").trim();
+  const imageNotes = String(input.imageNotes || "").trim();
+  const providedTitle = String(input.productTitle || "").trim();
+  const providedCategory = String(input.productCategory || "").trim();
+  const notes = [sourceText, imageNotes, providedTitle, providedCategory].filter(Boolean).join(" ");
+  const candidates = [];
+  const warnings = [];
+
+  for (const urlValue of urls.slice(0, 3)) {
+    try {
+      const response = await fetch(urlValue, {
+        redirect: "follow",
+        headers: {
+          "user-agent": "Mozilla/5.0 ThreadsMe Product Intel",
+          accept: "text/html,application/xhtml+xml,image/*,*/*",
+        },
+        signal: AbortSignal.timeout(12000),
+      });
+      const contentType = response.headers.get("content-type") || "";
+      if (/text\/html|application\/xhtml/i.test(contentType)) {
+        const html = (await response.text()).slice(0, 500000);
+        const meta = extractHtmlMeta(html);
+        if (meta.title) candidates.push({ source: response.url || urlValue, title: meta.title, description: meta.description });
+      } else {
+        warnings.push(`${urlValue} nampak seperti fail ${contentType || "bukan HTML"}, jadi tajuk produk tidak boleh diekstrak terus.`);
+      }
+    } catch (error) {
+      warnings.push(`Gagal semak ${urlValue}: ${error.message}`);
+    }
+    const pathTitle = titleFromUrlPath(urlValue);
+    if (pathTitle && pathTitle.length > 8 && !/^file\/|\/file\/|my \d+/i.test(pathTitle)) {
+      candidates.push({ source: urlValue, title: pathTitle, description: "" });
+    }
+  }
+
+  if (providedTitle) {
+    candidates.push({ source: "tajuk diisi", title: providedTitle.slice(0, 140), description: notes.slice(0, 240) });
+  } else if (sourceText) {
+    const noteTitle = cleanTitleCandidate(sourceText.split(/\n/)[0]);
+    if (noteTitle.length >= 8) candidates.push({ source: "brief", title: noteTitle.slice(0, 140), description: notes.slice(0, 240) });
+  }
+
+  const best = candidates
+    .map((candidate) => ({
+      ...candidate,
+      title: cleanTitleCandidate(candidate.title),
+      score: tokenizeProductText(candidate.title).length + (candidate.description ? 1 : 0),
+    }))
+    .filter((candidate) => candidate.title.length >= 6)
+    .sort((a, b) => b.score - a.score)[0] || null;
+
+  const joined = [best?.title, best?.description, notes].filter(Boolean).join(" ");
+  return {
+    productTitle: best?.title || "",
+    productCategory: inferProductCategoryFromText(joined),
+    confidence: best ? Math.min(95, 55 + best.score * 8) : 20,
+    source: best?.source || "",
+    candidates: candidates.slice(0, 5),
+    warnings,
+    note: best
+      ? "Sila semak dan edit tajuk/kategori sebelum jana story."
+      : "ThreadsMe belum dapat kenal produk. Isi tajuk produk secara manual supaya story tidak lari.",
+  };
 }
 
 async function getPublisherStatus() {
@@ -1318,7 +1849,7 @@ async function updatePublisherConfig(input) {
     systemStatus: "Threads API - konfigurasi disimpan",
     systemNote: saved.dryRun
       ? "Publisher disimpan dalam dry-run. Tiada post live dihantar."
-      : "Publisher live disimpan. SMTA akan publish slot due bila token dan User ID sah.",
+      : "Publisher live disimpan. ThreadsMe akan publish slot due bila token dan User ID sah.",
     lastPublisherConfigAt: `${malaysiaNow()} GMT+8`,
   });
   return getPublisherStatus();
@@ -1348,10 +1879,45 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/product-audit") {
+      sendJson(res, 200, { ok: true, ...(await getProductAudit()) });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/system-data") {
       const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
       const statusData = await readJsonFile(statusFile, {});
       sendJson(res, 200, { ok: true, schedule: scheduleData, status: statusData });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/automation-health") {
+      const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+      const statusData = await readJsonFile(statusFile, {});
+      const config = await readThreadsConfig();
+      const hasToken = await hasThreadsToken(config);
+      let hasKey = false;
+      try {
+        hasKey = Boolean(await getApiKey());
+      } catch {
+        hasKey = false;
+      }
+      sendJson(res, 200, {
+        ok: true,
+        runtimeRoot,
+        deepseek: { hasKey, model: "deepseek-v4-flash" },
+        queue: {
+          totalPosts: Array.isArray(scheduleData.posts) ? scheduleData.posts.length : 0,
+          pending: uniqueSortedNumbers(statusData.scheduled).length,
+          posted: uniqueSortedNumbers(statusData.posted).length,
+          failed: uniqueSortedNumbers(statusData.failed).length,
+          blocked: uniqueSortedNumbers([...(statusData.remaining || []), ...(statusData.prepared || [])]).length,
+          limit: threadsScheduleLimit,
+          lastAutomationAt: statusData.lastAutomationAt || "",
+        },
+        publisher: sanitizeThreadsConfig(config, hasToken),
+        audit: productAuditSummary(scheduleData, await readStoryRuns()),
+      });
       return;
     }
 
@@ -1361,7 +1927,7 @@ const server = createServer(async (req, res) => {
     }
 
     if (req.method === "POST" && url.pathname === "/api/automation/sync") {
-      const result = await runMtaAutomation();
+      const result = await runThreadsMeAutomation();
       sendJson(res, 200, { ok: true, ...result });
       return;
     }
@@ -1391,6 +1957,24 @@ const server = createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/product-intel") {
+      const input = await readBody(req);
+      sendJson(res, 200, { ok: true, ...(await inspectProductIntel(input)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/product-audit/update") {
+      const input = await readBody(req);
+      sendJson(res, 200, { ok: true, ...(await updateProductAudit(input)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/product-audit/regenerate") {
+      const input = await readBody(req);
+      sendJson(res, 200, { ok: true, ...(await regenerateProductAudit(input)) });
+      return;
+    }
+
     if (req.method === "POST" && url.pathname === "/api/generate-story") {
       const input = await readBody(req);
       const result = await generateStory(input);
@@ -1412,10 +1996,12 @@ const server = createServer(async (req, res) => {
   }
 });
 
+await ensureRuntimeFiles();
+
 server.listen(port, host, () => {
-  console.log(`SMTA AI server listening at http://${host}:${port}`);
-  runMtaAutomation().catch((error) => console.error(`[SMTA automation] ${error.message}`));
+  console.log(`ThreadsMe AI server listening at http://${host}:${port}`);
+  runThreadsMeAutomation().catch((error) => console.error(`[ThreadsMe automation] ${error.message}`));
   setInterval(() => {
-    runMtaAutomation().catch((error) => console.error(`[SMTA automation] ${error.message}`));
+    runThreadsMeAutomation().catch((error) => console.error(`[ThreadsMe automation] ${error.message}`));
   }, 60_000);
 });

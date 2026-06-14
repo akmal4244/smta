@@ -17,6 +17,9 @@ const state = {
   selectedCalendarDate: "",
   automationSummary: null,
   automationOnline: false,
+  automationHealth: null,
+  productAudit: { summary: null, items: [] },
+  aiHealth: { ok: false, hasKey: false, model: "" },
   publisher: {
     config: null,
     dueNumbers: [],
@@ -40,6 +43,8 @@ const els = {
   blockedPosts: document.querySelector("#blockedPosts"),
   dashboardPublisherMode: document.querySelector("#dashboardPublisherMode"),
   dashboardPublisherNote: document.querySelector("#dashboardPublisherNote"),
+  automationHealthGrid: document.querySelector("#automationHealthGrid"),
+  healthLastSync: document.querySelector("#healthLastSync"),
   creditYear: document.querySelector("#creditYear"),
   queueList: document.querySelector("#queueList"),
   visibleCount: document.querySelector("#visibleCount"),
@@ -73,6 +78,8 @@ const els = {
   storyTheme: document.querySelector("#storyTheme"),
   productImageUrl: document.querySelector("#productImageUrl"),
   productAffiliateLink: document.querySelector("#productAffiliateLink"),
+  productIntelButton: document.querySelector("#productIntelButton"),
+  productIntelNote: document.querySelector("#productIntelNote"),
   postsPerDay: document.querySelector("#postsPerDay"),
   imageNotes: document.querySelector("#imageNotes"),
   versionCount: document.querySelector("#versionCount"),
@@ -83,6 +90,20 @@ const els = {
   clearStoryButton: document.querySelector("#clearStoryButton"),
   generatedStatusNote: document.querySelector("#generatedStatusNote"),
   generatedStatusList: document.querySelector("#generatedStatusList"),
+  netizenPreviewNote: document.querySelector("#netizenPreviewNote"),
+  netizenPreviewList: document.querySelector("#netizenPreviewList"),
+  auditSummaryBadge: document.querySelector("#auditSummaryBadge"),
+  auditIssueCount: document.querySelector("#auditIssueCount"),
+  auditMetrics: document.querySelector("#auditMetrics"),
+  auditIssueList: document.querySelector("#auditIssueList"),
+  auditNumbers: document.querySelector("#auditNumbers"),
+  auditProductTitle: document.querySelector("#auditProductTitle"),
+  auditProductCategory: document.querySelector("#auditProductCategory"),
+  auditAffiliateLink: document.querySelector("#auditAffiliateLink"),
+  auditNotes: document.querySelector("#auditNotes"),
+  auditActionStatus: document.querySelector("#auditActionStatus"),
+  auditSaveMetadataButton: document.querySelector("#auditSaveMetadataButton"),
+  auditRegenerateButton: document.querySelector("#auditRegenerateButton"),
   publisherModeBadge: document.querySelector("#publisherModeBadge"),
   publisherReadyText: document.querySelector("#publisherReadyText"),
   publisherDueText: document.querySelector("#publisherDueText"),
@@ -162,6 +183,15 @@ function uniqueNumbers(values) {
   );
 }
 
+function tokenizeText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, " ")
+    .split(/[^a-z0-9\u00c0-\u024f]+/i)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
 function applyStatusData(statusData = {}) {
   state.scheduled = uniqueNumbers(statusData.scheduled);
   state.posted = uniqueNumbers(statusData.posted);
@@ -226,13 +256,47 @@ async function refreshSystemData({ includeStories = true } = {}) {
     applyStatusData(statusData);
   }
   if (includeStories) await loadStoryRuns();
+  await loadProductAudit();
+  await loadAutomationHealth();
   await loadPublisherStatus();
   render();
+}
+
+async function loadProductAudit() {
+  if (!els.auditIssueList && !els.auditSummaryBadge) return;
+  try {
+    const response = await fetch(`${AI_SERVER_URL}/api/product-audit`, { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Audit produk gagal");
+    state.productAudit = {
+      summary: data.summary || null,
+      items: Array.isArray(data.items) ? data.items : [],
+    };
+  } catch (error) {
+    state.productAudit = {
+      summary: null,
+      items: [],
+      error: error.message,
+    };
+  }
+}
+
+async function loadAutomationHealth() {
+  if (!els.automationHealthGrid) return;
+  try {
+    const response = await fetch(`${AI_SERVER_URL}/api/automation-health`, { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Automation health gagal");
+    state.automationHealth = data;
+  } catch (error) {
+    state.automationHealth = { ok: false, error: error.message };
+  }
 }
 
 function getStatus(post, index) {
   const number = index + 1;
   const hasIssue = getLengths(post).some((length) => length > 300);
+  if (post.qualityStatus === "review") return "review";
   if (hasIssue) return "issue";
   if (state.failed.includes(number)) return "failed";
   if (state.posted.includes(number)) return "passed";
@@ -248,6 +312,7 @@ function getStatus(post, index) {
 function statusLabel(status) {
   return {
     issue: "Ada isu",
+    review: "Perlu Semak",
     failed: "Gagal",
     passed: "Lulus",
     pending: "Pending",
@@ -260,11 +325,12 @@ function statusLabel(status) {
 function statusDetail(status) {
   return {
     issue: "Aksara melebihi had Threads.",
+    review: "Quality Gate tahan siri ini kerana relevansi produk, CTA atau format perlu disemak.",
     failed: "Posting ditanda gagal dan perlu semakan manual.",
     passed: "Slot posting sudah lepas atau thread ditanda sudah posted.",
     pending: "Sudah masuk queue automasi dan sedang menunggu masa posting.",
-    blocked: "Menunggu slot automasi. Bila scheduled slot kosong, SMTA akan tukar siri ini kepada Pending secara automatik.",
-    prepared: "Draf sudah ready. SMTA akan naikkan ke Pending apabila slot automasi kosong.",
+    blocked: "Menunggu slot automasi. Bila scheduled slot kosong, ThreadsMe akan tukar siri ini kepada Pending secara automatik.",
+    prepared: "Draf sudah ready. ThreadsMe akan naikkan ke Pending apabila slot automasi kosong.",
   }[status];
 }
 
@@ -282,11 +348,11 @@ function getCalendarDays() {
     const key = getSlotDayKey(post.slot);
     if (!key) return;
     if (!dayMap.has(key)) {
-      dayMap.set(key, {
-        key,
-        posts: [],
-        counts: { passed: 0, pending: 0, failed: 0, blocked: 0, prepared: 0, issue: 0 },
-      });
+        dayMap.set(key, {
+          key,
+          posts: [],
+          counts: { passed: 0, pending: 0, failed: 0, blocked: 0, prepared: 0, review: 0, issue: 0 },
+        });
     }
     const day = dayMap.get(key);
     const status = getStatus(post, index);
@@ -373,7 +439,7 @@ function getStatusCounts() {
       counts[status] = (counts[status] || 0) + 1;
       return counts;
     },
-    { passed: 0, pending: 0, failed: 0, blocked: 0, prepared: 0, issue: 0 },
+    { passed: 0, pending: 0, failed: 0, blocked: 0, prepared: 0, review: 0, issue: 0 },
   );
 }
 
@@ -383,7 +449,7 @@ function getFilteredPosts() {
   return state.posts
     .map((post, index) => ({ post, index, status: getStatus(post, index) }))
     .filter(({ post, status }) => {
-      const haystack = [post.slot, post.main, post.reply1, post.reply2].join(" ").toLowerCase();
+      const haystack = [post.slot, post.productTitle, post.productCategory, post.main, post.reply1, post.reply2].join(" ").toLowerCase();
       const termMatch = !term || haystack.includes(term);
       const statusMatch = filter === "all" || status === filter;
       return termMatch && statusMatch;
@@ -400,6 +466,25 @@ function renderMetrics() {
   els.blockedPosts.textContent = state.remaining.length + state.prepared.length;
 }
 
+function makeTextElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  element.textContent = text;
+  return element;
+}
+
+function makeStatusBadge(status, label = statusLabel(status)) {
+  const badge = document.createElement("mark");
+  badge.className = `mini-status ${status}`;
+  badge.textContent = label;
+  return badge;
+}
+
+function appendChildren(parent, children) {
+  children.filter(Boolean).forEach((child) => parent.append(child));
+  return parent;
+}
+
 function renderQueue() {
   const visible = getFilteredPosts();
   els.visibleCount.textContent = `${visible.length} dipaparkan`;
@@ -414,10 +499,13 @@ function renderQueue() {
       const button = document.createElement("button");
       button.type = "button";
       button.className = `queue-item${index === state.selectedIndex ? " active" : ""}`;
-      button.innerHTML = `
-        <strong>Siri ${index + 1} - ${formatSlot(post.slot)}</strong>
-        <span><mark class="mini-status ${status}">${statusLabel(status)}</mark> ${post.main.slice(0, 92)}${post.main.length > 92 ? "..." : ""}</span>
-      `;
+      const title = makeTextElement("strong", "", `Siri ${index + 1} - ${formatSlot(post.slot)}`);
+      const snippet = document.createElement("span");
+      snippet.append(
+        makeStatusBadge(status),
+        document.createTextNode(` ${post.main.slice(0, 92)}${post.main.length > 92 ? "..." : ""}`),
+      );
+      button.append(title, snippet);
       button.addEventListener("click", () => {
         selectPost(index);
       });
@@ -436,14 +524,11 @@ function makePostCard(label, text) {
   const article = document.createElement("article");
   article.className = "thread-post";
   const length = text.length;
-  article.innerHTML = `
-    <header>
-      <strong>${label}</strong>
-      <span>${length}/300</span>
-    </header>
-    <p></p>
-  `;
-  article.querySelector("p").textContent = text;
+  const header = document.createElement("header");
+  header.append(makeTextElement("strong", "", label), makeTextElement("span", "", `${length}/300`));
+  const copy = document.createElement("p");
+  copy.textContent = text;
+  article.append(header, copy);
   return article;
 }
 
@@ -480,6 +565,57 @@ function renderPreview() {
     makePostCard("REPLY 1", post.reply1),
     makePostCard("REPLY 2", post.reply2),
   );
+  renderNetizenPreview();
+}
+
+function renderNetizenPreview() {
+  if (!els.netizenPreviewList || !els.netizenPreviewNote) return;
+  const post = state.posts[state.selectedIndex];
+  if (!post) {
+    els.netizenPreviewNote.textContent = "Tiada siri";
+    els.netizenPreviewList.replaceChildren(makeEmptyState("Belum ada preview", "Pilih siri dalam Jadual Threads dahulu."));
+    return;
+  }
+
+  const checks = [];
+  const lengths = getLengths(post);
+  const hasAffiliate = Boolean((post.reply2 || "").includes(post.affiliateLink || state.affiliateLink || "https://"));
+  const productTitle = String(post.productTitle || "").trim();
+  const combined = [post.main, post.reply1, post.reply2].join(" ").toLowerCase();
+  const productTokens = tokenizeText(productTitle).filter((token) => token.length > 3);
+  const relevanceHit = !productTokens.length || productTokens.some((token) => combined.includes(token));
+
+  checks.push({
+    label: "Relevansi produk",
+    tone: productTitle && relevanceHit ? "passed" : "review",
+    detail: productTitle ? `Produk: ${productTitle}` : "Tajuk produk belum disimpan untuk siri ini.",
+  });
+  checks.push({
+    label: "Had aksara",
+    tone: lengths.every((length) => length <= 300) ? "passed" : "failed",
+    detail: lengths.join(" / "),
+  });
+  checks.push({
+    label: "CTA affiliate",
+    tone: hasAffiliate ? "passed" : "review",
+    detail: hasAffiliate ? "Reply 2 ada link affiliate." : "Reply 2 perlu ada link affiliate tepat.",
+  });
+  checks.push({
+    label: "Rasa Threads",
+    tone: /aku|rasa|rumah|kerja|penat|hari|bila|kadang|sekarang/.test(combined) ? "passed" : "review",
+    detail: "Semak sama ada ayat terasa personal, bukan sekadar iklan.",
+  });
+
+  const reviewCount = checks.filter((item) => item.tone !== "passed").length;
+  els.netizenPreviewNote.textContent = reviewCount ? `${reviewCount} perkara perlu semak` : "Nampak natural untuk Threads";
+  els.netizenPreviewList.replaceChildren(
+    ...checks.map((item) => {
+      const card = document.createElement("article");
+      card.className = "netizen-card";
+      card.append(makeTextElement("strong", "", item.label), makeTextElement("span", "", item.detail), makeStatusBadge(item.tone, statusLabel(item.tone)));
+      return card;
+    }),
+  );
 }
 
 function renderStatusTable() {
@@ -488,11 +624,11 @@ function renderStatusTable() {
     const row = document.createElement("button");
     row.type = "button";
     row.className = `status-row ${status}${index === state.selectedIndex ? " active" : ""}`;
-    row.innerHTML = `
-      <span class="status-number">#${index + 1}</span>
-      <span class="status-time">${formatSlot(post.slot)}</span>
-      <span class="mini-status ${status}">${statusLabel(status)}</span>
-    `;
+    row.append(
+      makeTextElement("span", "status-number", `#${index + 1}`),
+      makeTextElement("span", "status-time", formatSlot(post.slot)),
+      makeStatusBadge(status),
+    );
     row.addEventListener("click", () => {
       selectPost(index);
     });
@@ -539,12 +675,18 @@ function renderScheduleCalendar() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `calendar-day-card ${health.className}${isActive ? " active" : ""}`;
-    button.innerHTML = `
-      <span>${formatCalendarDay(day.key, "short")}</span>
-      <strong>${day.posts.length}/${DAILY_POSTING_TARGET}</strong>
-      <mark>${health.label}</mark>
-      <small>Lulus ${day.counts.passed || 0} | Pending ${day.counts.pending || 0} | Blocked ${(day.counts.blocked || 0) + (day.counts.prepared || 0)}</small>
-    `;
+    const healthMark = document.createElement("mark");
+    healthMark.textContent = health.label;
+    button.append(
+      makeTextElement("span", "", formatCalendarDay(day.key, "short")),
+      makeTextElement("strong", "", `${day.posts.length}/${DAILY_POSTING_TARGET}`),
+      healthMark,
+      makeTextElement(
+        "small",
+        "",
+        `Lulus ${day.counts.passed || 0} | Pending ${day.counts.pending || 0} | Blocked ${(day.counts.blocked || 0) + (day.counts.prepared || 0)} | Semak ${day.counts.review || 0}`,
+      ),
+    );
     button.addEventListener("click", () => {
       state.selectedCalendarDate = day.key;
       if (day.posts[0]) state.selectedIndex = day.posts[0].index;
@@ -564,6 +706,7 @@ function renderScheduleCalendar() {
     ["Lulus", selectedDay.counts.passed || 0, "passed"],
     ["Pending", selectedDay.counts.pending || 0, "pending"],
     ["Blocked", blockedCount, "blocked"],
+    ["Semak", selectedDay.counts.review || 0, "review"],
     ["Gagal", selectedDay.counts.failed || 0, "failed"],
     ["Isu", selectedDay.counts.issue || 0, "issue"],
   ].map(([label, value, status]) => {
@@ -617,7 +760,7 @@ function renderUnblockAdvice() {
       ? ` Slot lama turut ditanda Lulus: ${postedNow.length === 1 ? `Siri ${postedNow[0]}` : `Siri ${postedNow[0]}-${postedNow[postedNow.length - 1]}`}.`
       : "";
     els.unblockNextWindow.textContent = "Auto Pending selesai";
-    els.unblockSummary.textContent = `${rangeText} sudah ditukar automatik daripada Blocked kepada Pending kerana slot schedule kosong.${postedText} SMTA ulang semakan setiap 60 saat.`;
+    els.unblockSummary.textContent = `${rangeText} sudah ditukar automatik daripada Blocked kepada Pending kerana slot schedule kosong.${postedText} ThreadsMe ulang semakan setiap 60 saat.`;
     return;
   }
 
@@ -631,21 +774,149 @@ function renderUnblockAdvice() {
     const rangeText =
       plan.readyNow === 1 ? `Siri ${plan.firstBlocked}` : `Siri ${plan.firstBlocked}-${plan.lastReadyNow}`;
     const fullBatchText = plan.allBlockedRelease
-      ? ` Untuk semua ${plan.blockedNumbers.length} baki, SMTA akan terus promote secara automatik selepas slot sehingga ${formatSlot(plan.allBlockedRelease.slot)} selesai.`
+      ? ` Untuk semua ${plan.blockedNumbers.length} baki, ThreadsMe akan terus promote secara automatik selepas slot sehingga ${formatSlot(plan.allBlockedRelease.slot)} selesai.`
       : "";
     els.unblockNextWindow.textContent = `${plan.readyNow} slot automasi kosong`;
-    els.unblockSummary.textContent = `${rangeText} layak naik daripada Blocked kepada Pending. SMTA akan sync automatik melalui server setiap 60 saat.${fullBatchText}`;
+    els.unblockSummary.textContent = `${rangeText} layak naik daripada Blocked kepada Pending. ThreadsMe akan sync automatik melalui server setiap 60 saat.${fullBatchText}`;
     return;
   }
 
   if (plan.nextRelease) {
     els.unblockNextWindow.textContent = `Slot seterusnya: ${formatSlot(plan.nextRelease.slot)}`;
-    els.unblockSummary.textContent = `Siri ${plan.firstBlocked} akan naik ke Pending selepas satu scheduled slot selesai. Untuk semua ${plan.blockedNumbers.length} baki, SMTA akan bergerak ikut slot seterusnya sehingga ${formatSlot(plan.allBlockedRelease.slot)} jika jadual berjalan seperti biasa.`;
+    els.unblockSummary.textContent = `Siri ${plan.firstBlocked} akan naik ke Pending selepas satu scheduled slot selesai. Untuk semua ${plan.blockedNumbers.length} baki, ThreadsMe akan bergerak ikut slot seterusnya sehingga ${formatSlot(plan.allBlockedRelease.slot)} jika jadual berjalan seperti biasa.`;
     return;
   }
 
   els.unblockNextWindow.textContent = "Perlu semakan manual";
-  els.unblockSummary.textContent = "SMTA tidak jumpa slot scheduled masa depan untuk dikitar secara automatik. Semak status queue atau tambah jadual baharu.";
+  els.unblockSummary.textContent = "ThreadsMe tidak jumpa slot scheduled masa depan untuk dikitar secara automatik. Semak status queue atau tambah jadual baharu.";
+}
+
+function renderAutomationHealth() {
+  if (!els.automationHealthGrid) return;
+  const health = state.automationHealth || {};
+  const queue = health.queue || {};
+  const publisher = health.publisher || state.publisher.config || {};
+  const audit = health.audit || state.productAudit.summary || {};
+  const cards = [
+    {
+      label: "AI Server",
+      value: health.ok === false ? "Offline" : state.automationOnline ? "Online" : "Semak",
+      detail: health.error || "Endpoint lokal 127.0.0.1:8788",
+      tone: health.ok === false ? "bad" : state.automationOnline ? "good" : "warn",
+    },
+    {
+      label: "DeepSeek",
+      value: health.deepseek?.hasKey || state.aiHealth.hasKey ? "Key OK" : "Key tiada",
+      detail: health.deepseek?.model || state.aiHealth.model || "deepseek-v4-flash",
+      tone: health.deepseek?.hasKey || state.aiHealth.hasKey ? "good" : "warn",
+    },
+    {
+      label: "Pending aktif",
+      value: `${queue.pending ?? state.scheduled.length}/${queue.limit || THREADS_SCHEDULE_LIMIT}`,
+      detail: "Queue scheduled aktif",
+      tone: (queue.pending ?? state.scheduled.length) >= THREADS_SCHEDULE_LIMIT ? "good" : "warn",
+    },
+    {
+      label: "Blocked",
+      value: String(queue.blocked ?? state.remaining.length + state.prepared.length),
+      detail: "Auto promote bila slot kosong",
+      tone: (queue.blocked ?? 0) ? "warn" : "good",
+    },
+    {
+      label: "Quality Gate",
+      value: `${audit.reviewCount || 0} semak`,
+      detail: `${audit.missingProductTitleCount || 0} tiada tajuk produk`,
+      tone: (audit.reviewCount || audit.missingProductTitleCount) ? "warn" : "good",
+    },
+    {
+      label: "Publisher",
+      value: publisher.liveReady ? "Live ready" : publisher.dryRun === false ? "Belum lengkap" : "Dry-run",
+      detail: publisher.hasToken ? "Token disimpan" : "Token belum ada",
+      tone: publisher.liveReady ? "good" : "warn",
+    },
+  ];
+
+  els.automationHealthGrid.replaceChildren(
+    ...cards.map((card) => {
+      const article = document.createElement("article");
+      article.className = `health-card ${card.tone}`;
+      article.append(
+        makeTextElement("span", "", card.label),
+        makeTextElement("strong", "", card.value),
+        makeTextElement("small", "", card.detail),
+      );
+      return article;
+    }),
+  );
+  if (els.healthLastSync) {
+    els.healthLastSync.textContent = `Sync ${new Date().toLocaleTimeString("ms-MY", { hour: "2-digit", minute: "2-digit" })}`;
+  }
+}
+
+function renderProductAudit() {
+  if (!els.auditIssueList || !els.auditMetrics) return;
+  const summary = state.productAudit.summary || {};
+  const items = state.productAudit.items || [];
+  const totalIssues = (summary.missingProductTitleCount || 0) + (summary.reviewCount || 0) + (summary.overLimitCount || 0);
+
+  if (els.auditSummaryBadge) {
+    els.auditSummaryBadge.textContent = state.productAudit.error ? "Audit offline" : totalIssues ? `${totalIssues} isu` : "Audit bersih";
+    els.auditSummaryBadge.className = totalIssues ? "warn" : "ready";
+  }
+  if (els.auditIssueCount) {
+    els.auditIssueCount.textContent = state.productAudit.error || `${items.length} dipaparkan`;
+  }
+
+  const metricItems = [
+    ["Total siri", summary.totalPosts || state.posts.length || 0],
+    ["Generated", summary.generatedCount || 0],
+    ["Tiada tajuk", summary.missingProductTitleCount || 0],
+    ["Perlu semak", summary.reviewCount || 0],
+  ];
+  els.auditMetrics.replaceChildren(
+    ...metricItems.map(([label, value]) => {
+      const item = document.createElement("article");
+      item.className = "audit-metric";
+      item.append(makeTextElement("span", "", label), makeTextElement("strong", "", String(value)));
+      return item;
+    }),
+  );
+
+  if (!items.length) {
+    els.auditIssueList.replaceChildren(
+      makeEmptyState(
+        state.productAudit.error ? "Audit belum tersedia" : "Tiada isu besar",
+        state.productAudit.error || "Quality Gate tidak jumpa batch lama yang perlu dibaiki sekarang.",
+      ),
+    );
+    return;
+  }
+
+  els.auditIssueList.replaceChildren(
+    ...items.map((item) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `audit-issue-row${item.number === state.selectedIndex + 1 ? " active" : ""}`;
+      button.append(
+        makeTextElement("strong", "", `#${item.number}`),
+        appendChildren(document.createElement("span"), [
+          document.createTextNode(item.productTitle || item.issue || "Perlu audit"),
+          makeTextElement("small", "", item.snippet || item.slot || ""),
+        ]),
+        makeStatusBadge(item.qualityStatus === "review" ? "review" : "issue", item.issue || "Semak"),
+      );
+      button.addEventListener("click", () => {
+        els.auditNumbers.value = String(item.number);
+        els.auditProductTitle.value = item.productTitle || "";
+        els.auditProductCategory.value = item.productCategory || "";
+        els.auditAffiliateLink.value = item.affiliateLink || state.affiliateLink || "";
+        state.selectedIndex = Math.max(0, item.number - 1);
+        state.selectedCalendarDate = getSlotDayKey(state.posts[state.selectedIndex]?.slot);
+        render();
+      });
+      return button;
+    }),
+  );
 }
 
 function threadText(post) {
@@ -677,6 +948,7 @@ function generatedStatusLabel(status) {
     passed: "Lulus",
     pending: "Pending",
     blocked: "Blocked",
+    review: "Perlu Semak",
     failed: "Gagal",
   }[status] || "Pending";
 }
@@ -685,6 +957,7 @@ function generatedStatusClass(status) {
   if (status === "passed") return "passed";
   if (status === "failed") return "failed";
   if (status === "blocked") return "blocked";
+  if (status === "review") return "review";
   return "pending";
 }
 
@@ -699,12 +972,14 @@ async function checkAiServer() {
   try {
     const response = await fetch(`${AI_SERVER_URL}/api/health`, { cache: "no-store" });
     const data = await response.json();
+    state.aiHealth = { ok: Boolean(data.ok), hasKey: Boolean(data.hasKey), model: data.model || "" };
     if (data.ok && data.hasKey) {
       setAiStatus(`DeepSeek sedia - ${data.model}`, "ready");
     } else {
       setAiStatus("Server AI sedia, API key tiada", "warn");
     }
   } catch {
+    state.aiHealth = { ok: false, hasKey: false, model: "" };
     setAiStatus("Server AI offline", "warn");
   }
 }
@@ -814,14 +1089,13 @@ function renderPublisher() {
     const row = document.createElement("div");
     row.className = `publisher-log-row ${entry.status || "dry_run"}`;
     const label = entry.status === "published" ? "Lulus" : entry.status === "failed" ? "Gagal" : "Dry-run";
-    row.innerHTML = `
-      <strong>Siri ${entry.number || "-"}</strong>
-      <span>
-        ${label} - ${entry.mode || "dry-run"}
-        <small>${entry.finishedAt || entry.createdAt || ""}</small>
-      </span>
-      <mark class="mini-status ${entry.status === "failed" ? "failed" : entry.status === "published" ? "passed" : "pending"}">${label}</mark>
-    `;
+    const details = makeTextElement("span", "", `${label} - ${entry.mode || "dry-run"}`);
+    details.append(makeTextElement("small", "", entry.finishedAt || entry.createdAt || ""));
+    row.append(
+      makeTextElement("strong", "", `Siri ${entry.number || "-"}`),
+      details,
+      makeStatusBadge(entry.status === "failed" ? "failed" : entry.status === "published" ? "passed" : "pending", label),
+    );
     if (entry.error) {
       const error = document.createElement("em");
       error.textContent = entry.error;
@@ -843,6 +1117,8 @@ async function updateGeneratedStatus(versionId, status) {
   state.storyRuns = Array.isArray(data.runs) ? data.runs : [];
   if (data.status) applyStatusData(data.status);
   await loadScheduleData();
+  await loadProductAudit();
+  await loadAutomationHealth();
   renderGeneratedStatus();
   render();
 }
@@ -869,7 +1145,7 @@ function renderGeneratedStatus() {
 
   if (!versions.length) {
     els.generatedStatusList.replaceChildren(
-      makeEmptyState("Belum ada story dijana", "Upload atau paste gambar produk, kemudian biarkan SMTA cipta dan jadualkan siri Threads."),
+      makeEmptyState("Belum ada story dijana", "Upload atau paste gambar produk, kemudian biarkan ThreadsMe cipta dan jadualkan siri Threads."),
     );
     return;
   }
@@ -883,25 +1159,13 @@ function renderGeneratedStatus() {
       const scheduleText = version.slot
         ? ` - Siri ${version.scheduleNumber || "-"} - ${formatSlot(version.slot)}`
         : " - Belum dijadualkan";
-      const openButton = version.scheduleNumber
-        ? `<button type="button" data-open-schedule="${version.scheduleNumber}">Buka siri</button>`
-        : `<button type="button" disabled>Tiada jadual</button>`;
-      const statusDisabled = version.scheduleNumber ? "" : " disabled";
       row.className = "generated-row";
-      row.innerHTML = `
-        <strong>${version.label || "Versi"}</strong>
-        <span>
-          ${version.productName}
-          <span class="generated-meta">${version.createdAt} - ${version.postsPerDay} posting/hari${scheduleText}</span>
-        </span>
-        <span class="mini-status ${generatedStatusClass(status)}">${generatedStatusLabel(status)}</span>
-        <span class="generated-actions">
-          ${openButton}
-          <button type="button" data-status="passed"${statusDisabled}>Lulus</button>
-          <button type="button" data-status="pending"${statusDisabled}>Pending</button>
-          <button type="button" data-status="failed"${statusDisabled}>Gagal</button>
-        </span>
-      `;
+      const title = makeTextElement("strong", "", version.label || "Versi");
+      const product = makeTextElement("span", "", version.productName);
+      product.append(
+        makeTextElement("span", "generated-meta", `${version.createdAt} - ${version.postsPerDay} posting/hari${scheduleText}`),
+      );
+      const statusBadge = makeStatusBadge(generatedStatusClass(status), generatedStatusLabel(status));
       const linkSlot = document.createElement(version.affiliateLink ? "a" : "span");
       if (version.affiliateLink) {
         linkSlot.href = version.affiliateLink;
@@ -911,7 +1175,26 @@ function renderGeneratedStatus() {
         linkSlot.className = "disabled-link";
       }
       linkSlot.textContent = version.affiliateLink ? "Pautan affiliate" : "Tiada pautan affiliate";
-      row.insertBefore(linkSlot, row.querySelector(".generated-actions"));
+      const actions = makeTextElement("span", "generated-actions", "");
+      const openButton = document.createElement("button");
+      openButton.type = "button";
+      if (version.scheduleNumber) {
+        openButton.dataset.openSchedule = String(version.scheduleNumber);
+        openButton.textContent = "Buka siri";
+      } else {
+        openButton.disabled = true;
+        openButton.textContent = "Tiada jadual";
+      }
+      actions.append(openButton);
+      ["passed", "pending", "review", "failed"].forEach((nextStatus) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.status = nextStatus;
+        button.disabled = !version.scheduleNumber;
+        button.textContent = generatedStatusLabel(nextStatus);
+        actions.append(button);
+      });
+      row.append(title, product, statusBadge, linkSlot, actions);
       row.querySelectorAll("button[data-status]").forEach((button) => {
         button.addEventListener("click", async () => {
           button.disabled = true;
@@ -965,8 +1248,55 @@ function resetImageState() {
   showPreviewImage("", "");
 }
 
+async function runProductIntel() {
+  if (!els.productIntelButton) return;
+  els.productIntelButton.disabled = true;
+  els.productIntelButton.textContent = "Menyemak...";
+  if (els.productIntelNote) els.productIntelNote.textContent = "ThreadsMe sedang cuba kenal pasti produk daripada link dan nota.";
+  try {
+    const response = await fetch(`${AI_SERVER_URL}/api/product-intel`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        affiliateLink: els.productAffiliateLink.value.trim(),
+        imageUrl: els.productImageUrl.value.trim(),
+        sourceText: els.storyInput.value.trim(),
+        imageNotes: els.imageNotes.value.trim(),
+        productTitle: els.productTitle.value.trim(),
+        productCategory: els.productCategory.value.trim(),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Semakan produk gagal");
+    if (data.productTitle && !els.productTitle.value.trim()) {
+      els.productTitle.value = data.productTitle;
+    }
+    if (data.productCategory && !els.productCategory.value.trim()) {
+      els.productCategory.value = data.productCategory;
+    }
+    const confidence = Number.isFinite(Number(data.confidence)) ? `${data.confidence}%` : "rendah";
+    const warningText = data.warnings?.length ? ` Nota: ${data.warnings[0]}` : "";
+    if (els.productIntelNote) {
+      els.productIntelNote.textContent = data.productTitle
+        ? `Cadangan produk ditemui (${confidence}). Sila semak tajuk/kategori sebelum jana.${warningText}`
+        : `${data.note || "ThreadsMe belum dapat kenal produk."}${warningText}`;
+    }
+  } catch (error) {
+    if (els.productIntelNote) {
+      els.productIntelNote.textContent = `Semakan produk gagal: ${error.message}. Isi tajuk produk manual sebelum jana.`;
+    }
+  } finally {
+    els.productIntelButton.disabled = false;
+    els.productIntelButton.textContent = "Auto semak produk Shopee";
+  }
+}
+
 function bindStoryGenerator() {
   if (!els.generateStoryButton) return;
+
+  els.productIntelButton?.addEventListener("click", () => {
+    runProductIntel();
+  });
 
   els.storyImage.addEventListener("change", () => {
     const file = els.storyImage.files?.[0];
@@ -1074,7 +1404,7 @@ function bindStoryGenerator() {
     } catch (error) {
       const offline = /failed to fetch|networkerror|load failed/i.test(error.message);
       els.storyOutput.value = offline
-        ? "Gagal generate: Server AI SMTA belum hidup. Sila tunggu sebentar dan cuba semula, atau jalankan npm run ai dalam folder smta."
+        ? "Gagal generate: Server AI ThreadsMe belum hidup. Sila tunggu sebentar dan cuba semula, atau jalankan npm run ai dalam folder ThreadsMe."
         : `Gagal generate: ${error.message}`;
       setAiStatus(offline ? "Server AI offline" : "Jana gagal", "warn");
     } finally {
@@ -1111,7 +1441,7 @@ async function savePublisherConfig() {
   const liveRequested = els.threadsEnabled.checked && !els.threadsDryRun.checked;
   if (liveRequested) {
     const ok = window.confirm(
-      "Anda sedang aktifkan Threads live publisher. Bila token sah dan slot due, SMTA boleh hantar post public ke Threads. Teruskan?",
+      "Anda sedang aktifkan Threads live publisher. Bila token sah dan slot due, ThreadsMe boleh hantar post public ke Threads. Teruskan?",
     );
     if (!ok) return;
   }
@@ -1210,6 +1540,72 @@ function bindPublisherControls() {
   });
 }
 
+async function saveProductAuditMetadata() {
+  if (!els.auditSaveMetadataButton) return;
+  els.auditSaveMetadataButton.disabled = true;
+  els.auditActionStatus.textContent = "Menyimpan metadata...";
+  try {
+    const response = await fetch(`${AI_SERVER_URL}/api/product-audit/update`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        numbers: els.auditNumbers.value.trim(),
+        productTitle: els.auditProductTitle.value.trim(),
+        productCategory: els.auditProductCategory.value.trim(),
+        affiliateLink: els.auditAffiliateLink.value.trim(),
+        note: els.auditNotes.value.trim(),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Audit metadata gagal");
+    state.productAudit = { summary: data.summary || null, items: Array.isArray(data.items) ? data.items : [] };
+    els.auditActionStatus.textContent = `${data.updatedNumbers?.length || 0} siri dikemas kini`;
+    await refreshSystemData();
+  } finally {
+    els.auditSaveMetadataButton.disabled = false;
+  }
+}
+
+async function regenerateProductAuditStories() {
+  if (!els.auditRegenerateButton) return;
+  els.auditRegenerateButton.disabled = true;
+  els.auditActionStatus.textContent = "Regenerate story...";
+  try {
+    const response = await fetch(`${AI_SERVER_URL}/api/product-audit/regenerate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        numbers: els.auditNumbers.value.trim(),
+        productTitle: els.auditProductTitle.value.trim(),
+        productCategory: els.auditProductCategory.value.trim(),
+        affiliateLink: els.auditAffiliateLink.value.trim(),
+        note: els.auditNotes.value.trim(),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error(data.error || "Regenerate audit gagal");
+    state.productAudit = { summary: data.summary || null, items: Array.isArray(data.items) ? data.items : [] };
+    els.auditActionStatus.textContent = `${data.updatedNumbers?.length || 0} siri regenerated`;
+    await refreshSystemData();
+  } finally {
+    els.auditRegenerateButton.disabled = false;
+  }
+}
+
+function bindAuditControls() {
+  if (!els.auditSaveMetadataButton) return;
+  els.auditSaveMetadataButton.addEventListener("click", () => {
+    saveProductAuditMetadata().catch((error) => {
+      els.auditActionStatus.textContent = error.message;
+    });
+  });
+  els.auditRegenerateButton.addEventListener("click", () => {
+    regenerateProductAuditStories().catch((error) => {
+      els.auditActionStatus.textContent = error.message;
+    });
+  });
+}
+
 async function copyText(text) {
   await navigator.clipboard.writeText(text);
 }
@@ -1220,6 +1616,7 @@ function bindActions() {
   els.statusFilter.addEventListener("change", renderQueue);
   bindStoryGenerator();
   bindPublisherControls();
+  bindAuditControls();
 
   els.copyPromptButton.addEventListener("click", async () => {
     await copyText("Ya, jadualkan");
@@ -1283,6 +1680,9 @@ function render() {
   renderPreview();
   renderStatusTable();
   renderUnblockAdvice();
+  renderAutomationHealth();
+  renderProductAudit();
+  renderNetizenPreview();
   renderPublisher();
 }
 
@@ -1335,7 +1735,9 @@ function animateActiveView() {
   }
 
   const stackItems = Array.from(
-    activePanel.querySelectorAll(".metrics-grid article, .automation-rail article, .calendar-day-card, .publisher-panel"),
+    activePanel.querySelectorAll(
+      ".metrics-grid article, .automation-rail article, .health-card, .calendar-day-card, .audit-panel, .publisher-panel",
+    ),
   );
   if (stackItems.length) {
     gsap.fromTo(
@@ -1361,7 +1763,7 @@ function bindTasteMotion() {
 
   if (window.ScrollTrigger) {
     gsap.registerPlugin(window.ScrollTrigger);
-    gsap.utils.toArray(".story-lab, .calendar-panel, .preview-panel, .publisher-panel").forEach((element) => {
+    gsap.utils.toArray(".story-lab, .health-panel, .calendar-panel, .preview-panel, .audit-panel, .publisher-panel").forEach((element) => {
       if (element.dataset.tasteScrollBound === "true") return;
       element.dataset.tasteScrollBound = "true";
       gsap.fromTo(
@@ -1383,7 +1785,7 @@ function bindTasteMotion() {
   }
 
   document
-    .querySelectorAll(".nav-item, .metrics-grid article, .queue-item, .calendar-day-card, .publisher-panel")
+    .querySelectorAll(".nav-item, .metrics-grid article, .health-card, .queue-item, .calendar-day-card, .audit-panel, .publisher-panel")
     .forEach((element) => {
       if (element.dataset.tasteBound === "true") return;
       element.dataset.tasteBound = "true";
@@ -1412,5 +1814,11 @@ async function boot() {
 }
 
 boot().catch((error) => {
-  document.body.innerHTML = `<main class="app-shell"><section class="note-panel"><h1>SMTA failed to load</h1><p>${error.message}</p></section></main>`;
+  const main = document.createElement("main");
+  main.className = "app-shell";
+  const panel = document.createElement("section");
+  panel.className = "note-panel";
+  panel.append(makeTextElement("h1", "", "ThreadsMe failed to load"), makeTextElement("p", "", error.message));
+  main.append(panel);
+  document.body.replaceChildren(main);
 });

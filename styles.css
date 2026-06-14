@@ -224,6 +224,9 @@ textarea {
 .calendar-panel,
 .automation-focus,
 .automation-rail article,
+.health-panel,
+.audit-panel,
+.netizen-preview,
 .publisher-panel {
   border: 1px solid var(--kumo-hairline);
   border-radius: var(--radius);
@@ -487,6 +490,10 @@ h2 {
   padding: 16px;
 }
 
+.status-card > div {
+  min-width: 0;
+}
+
 .status-dot {
   width: 10px;
   height: 10px;
@@ -511,6 +518,7 @@ h2 {
   margin-top: 3px;
   color: var(--kumo-subtle);
   font-size: 0.82rem;
+  white-space: normal;
 }
 
 .metrics-grid {
@@ -661,6 +669,9 @@ h2 {
 
 .story-lab,
 .generated-status-wrap,
+.health-panel,
+.audit-panel,
+.netizen-preview,
 .calendar-panel,
 .queue-panel,
 .preview-panel,
@@ -782,6 +793,37 @@ h2 {
   font-size: 0.82rem;
 }
 
+.product-intel-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(36, 99, 235, 0.16);
+  border-radius: var(--radius);
+  background: var(--kumo-brand-soft);
+  padding: 10px;
+}
+
+.product-intel-strip button {
+  min-height: 36px;
+  background: var(--kumo-surface);
+  color: var(--kumo-brand);
+  box-shadow: none;
+}
+
+.product-intel-strip button:hover {
+  border-color: rgba(36, 99, 235, 0.32);
+  background: #fff;
+  box-shadow: none;
+}
+
+.product-intel-strip span {
+  min-width: 0;
+  color: var(--kumo-ink-soft);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
 .action-strip,
 .publisher-actions {
   display: flex;
@@ -856,6 +898,67 @@ h2 {
   font-weight: 850;
 }
 
+.panel-heading p,
+.compact-heading p {
+  margin: 4px 0 0;
+  color: var(--kumo-subtle);
+  font-size: 0.84rem;
+}
+
+.health-panel {
+  padding: 18px;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.health-card {
+  display: grid;
+  gap: 6px;
+  min-height: 104px;
+  border: 1px solid var(--kumo-hairline);
+  border-radius: var(--radius);
+  background: var(--kumo-surface-soft);
+  padding: 13px;
+}
+
+.health-card span {
+  color: var(--kumo-subtle);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.health-card strong {
+  color: var(--kumo-ink);
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.health-card small {
+  color: var(--kumo-subtle);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
+}
+
+.health-card.good {
+  border-color: rgba(18, 128, 92, 0.2);
+  background: var(--kumo-success-soft);
+}
+
+.health-card.warn {
+  border-color: rgba(182, 95, 0, 0.2);
+  background: var(--kumo-warning-soft);
+}
+
+.health-card.bad {
+  border-color: rgba(197, 48, 48, 0.2);
+  background: var(--kumo-danger-soft);
+}
+
 .control-band {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) 180px auto;
@@ -920,6 +1023,7 @@ h2 {
 .mini-status,
 .badge,
 #aiStatus,
+#auditSummaryBadge,
 #publisherModeBadge {
   display: inline-flex;
   align-items: center;
@@ -942,6 +1046,7 @@ h2 {
 .calendar-status-pill.passed,
 .badge.passed,
 #aiStatus.ready,
+#auditSummaryBadge.ready,
 #publisherModeBadge.live {
   border-color: rgba(18, 128, 92, 0.22);
   background: var(--kumo-success-soft);
@@ -974,10 +1079,18 @@ h2 {
 .badge.failed,
 .badge.issue,
 #aiStatus.warn,
+#auditSummaryBadge.warn,
 #publisherModeBadge.warn {
   border-color: rgba(197, 48, 48, 0.22);
   background: var(--kumo-danger-soft);
   color: var(--kumo-danger);
+}
+
+.mini-status.review,
+.badge.review {
+  border-color: rgba(182, 95, 0, 0.24);
+  background: var(--kumo-warning-soft);
+  color: var(--kumo-warning);
 }
 
 .mini-status.prepared,
@@ -1223,6 +1336,158 @@ h2 {
   white-space: pre-wrap;
 }
 
+.netizen-preview {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  background: var(--kumo-surface);
+}
+
+.netizen-preview-list {
+  display: grid;
+  gap: 10px;
+}
+
+.netizen-card {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid var(--kumo-hairline);
+  border-radius: var(--radius);
+  background: var(--kumo-surface-soft);
+  padding: 12px;
+}
+
+.netizen-card strong,
+.netizen-card span,
+.netizen-card small {
+  min-width: 0;
+}
+
+.netizen-card strong {
+  color: var(--kumo-ink);
+}
+
+.netizen-card span {
+  color: var(--kumo-subtle);
+  overflow-wrap: anywhere;
+}
+
+.netizen-card small {
+  color: var(--kumo-faint);
+  font-size: 0.76rem;
+}
+
+.audit-layout {
+  display: grid;
+  grid-template-columns: minmax(360px, 0.9fr) minmax(360px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.audit-panel {
+  min-width: 0;
+}
+
+.audit-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.audit-metric {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--kumo-hairline);
+  border-radius: var(--radius);
+  background: var(--kumo-surface-soft);
+  padding: 12px;
+}
+
+.audit-metric span {
+  color: var(--kumo-subtle);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.audit-metric strong {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.audit-issue-list,
+.audit-form {
+  display: grid;
+  gap: 10px;
+}
+
+.audit-issue-list {
+  max-height: 560px;
+  overflow: auto;
+}
+
+.audit-issue-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid var(--kumo-hairline);
+  border-radius: var(--radius);
+  background: var(--kumo-surface-soft);
+  color: var(--kumo-ink);
+  padding: 12px;
+  text-align: left;
+  box-shadow: none;
+}
+
+.audit-issue-row:hover,
+.audit-issue-row.active {
+  border-color: rgba(36, 99, 235, 0.32);
+  background: var(--kumo-brand-soft);
+  box-shadow: none;
+}
+
+.audit-issue-row strong,
+.audit-issue-row span,
+.audit-issue-row small {
+  min-width: 0;
+}
+
+.audit-issue-row span {
+  color: var(--kumo-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audit-issue-row small {
+  color: var(--kumo-faint);
+  font-size: 0.76rem;
+}
+
+.audit-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.audit-actions button:nth-child(2) {
+  border-color: var(--kumo-hairline);
+  background: var(--kumo-surface);
+  color: var(--kumo-ink);
+  box-shadow: none;
+}
+
+.audit-actions button:nth-child(2):hover {
+  border-color: rgba(36, 99, 235, 0.32);
+  background: var(--kumo-brand-soft);
+  color: var(--kumo-brand);
+}
+
 .generated-status-list {
   display: grid;
   gap: 8px;
@@ -1431,6 +1696,7 @@ h2 {
   }
 
   .story-grid,
+  .audit-layout,
   .calendar-layout,
   .workbench,
   .publisher-layout,
@@ -1473,6 +1739,8 @@ h2 {
   }
 
   .metrics-grid,
+  .health-grid,
+  .audit-metrics,
   .note-panel,
   .automation-rail,
   .slot-meta,
@@ -1481,7 +1749,9 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .generated-row {
+  .generated-row,
+  .netizen-card,
+  .audit-issue-row {
     grid-template-columns: 1fr;
     align-items: start;
   }
@@ -1530,7 +1800,10 @@ h2 {
   .note-panel,
   .automation-focus,
   .automation-rail article,
+  .health-panel,
   .story-lab,
+  .audit-panel,
+  .netizen-preview,
   .calendar-panel,
   .queue-panel,
   .preview-panel,
@@ -1548,6 +1821,8 @@ h2 {
   .automation-board,
   .story-lab,
   .generated-status-wrap,
+  .health-panel,
+  .audit-layout,
   .calendar-panel,
   .workbench,
   .publisher-layout,
@@ -1557,11 +1832,21 @@ h2 {
   }
 
   h1 {
-    font-size: clamp(1.55rem, 7vw, 1.9rem);
+    max-width: min(100%, 320px);
+    font-size: 1.46rem;
+    line-height: 1.16;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: anywhere;
   }
 
   .subtitle {
     max-width: 300px;
+  }
+
+  .status-card strong,
+  .status-card span:last-child {
+    max-width: 285px;
   }
 
   .topbar > div:first-child,
@@ -1572,6 +1857,8 @@ h2 {
   .queue-panel,
   .preview-panel,
   .publisher-panel,
+  .audit-panel,
+  .netizen-preview,
   .control-band {
     padding: 14px;
   }
@@ -1592,7 +1879,9 @@ h2 {
   }
 
   .action-strip,
-  .publisher-actions {
+  .publisher-actions,
+  .audit-actions,
+  .product-intel-strip {
     display: grid;
     grid-template-columns: 1fr;
   }

@@ -1,14 +1,14 @@
-# Ingatan Sistem SMTA
+# Ingatan Sistem ThreadsMe
 
-Fail ini ialah rujukan tetap untuk Sistem Marvis Threads Auto (SMTA). Tujuannya supaya tetapan, keputusan terdahulu, dan prinsip operasi tidak hilang apabila kerja disambung semula.
+Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusan terdahulu, dan prinsip operasi tidak hilang apabila kerja disambung semula.
 
 ## Identiti Sistem
 
 | Item | Tetapan |
 | --- | --- |
-| Nama rasmi | Sistem Marvis Threads Auto (SMTA) |
-| Repo slug | `smta` |
-| Localhost rasmi | `http://localhost/smta/` |
+| Nama rasmi | ThreadsMe |
+| Repo slug | `threadsme` |
+| Localhost rasmi | `http://localhost/threadsme/` |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | `Asia/Kuala_Lumpur` |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -25,6 +25,7 @@ Fail ini ialah rujukan tetap untuk Sistem Marvis Threads Auto (SMTA). Tujuannya 
 - Model AI semasa ialah `deepseek-v4-flash`.
 - Publisher Threads default mesti kekal `Dry-run` sehingga token dan User ID disahkan.
 - Token dan API key tidak boleh di-commit ke repo.
+- Runtime JSON aktif berada dalam `work/runtime/` dan tidak di-commit.
 
 ## Peraturan Story Produk
 
@@ -49,6 +50,7 @@ Fail ini ialah rujukan tetap untuk Sistem Marvis Threads Auto (SMTA). Tujuannya 
 | `Blocked` | Siri belum gagal; ia cuma menunggu slot queue kosong. |
 | `Gagal` | Siri gagal diproses atau ditanda gagal. |
 | `Disediakan` | Siri disimpan tetapi belum aktif dalam queue. |
+| `Perlu Semak` | Siri ditahan Quality Gate kerana metadata/relevansi/CTA/format perlu dibaiki sebelum publish. |
 
 ## Fail Data Penting
 
@@ -57,7 +59,10 @@ Fail ini ialah rujukan tetap untuk Sistem Marvis Threads Auto (SMTA). Tujuannya 
 | `threads_flexi_marble_schedule.json` | Jadual semua siri posting, slot, copy, affiliate link, dan metadata produk. |
 | `status.json` | Runtime status queue: scheduled, posted, failed, remaining, publisher config ringkas. |
 | `story-runs.json` | Rekod output AI dan metadata run. |
-| `publish-log.json` | Log publisher runtime; tidak di-commit. |
+| `work/runtime/status.json` | Runtime status queue aktif yang dikemas kini automasi. |
+| `work/runtime/story-runs.json` | Runtime story run aktif. |
+| `work/runtime/publish-log.json` | Runtime log publisher aktif. |
+| `publish-log.json` | Log publisher legacy; tidak di-commit. |
 | `work/private/` | Lokasi private untuk API key dan token; tidak di-commit. |
 
 ## Snapshot Audit Terakhir
@@ -78,19 +83,16 @@ Snapshot ini dibuat pada `2026-06-14` dan boleh berubah apabila automasi berjala
 - UI mesti profesional, tenang, dan tidak sakit mata.
 - Font tidak perlu besar-besar; keutamaan ialah kebolehbacaan dan density yang kemas.
 - Gunakan sidebar seperti sistem pentadbir, bukan landing page.
-- Modul mesti dipisahkan: Ringkasan, Jana Story, Jadual Threads, Automasi/Publisher.
+- Modul mesti dipisahkan: Ringkasan, Jana Story, Jadual Threads, Audit Produk, Automasi Live.
 - Status automation mesti sentiasa jelas pada pengguna.
 - Gunakan gaya Kumo UI dan taste-skill sebagai arah visual: surface hierarchy, token warna semantik, spacing kemas, dan micro-motion ringan.
 
 ## Keutamaan Naik Taraf Seterusnya
 
-1. Product Audit untuk betulkan siri lama yang story-nya tidak kena produk.
-2. Quality Gate sebelum story masuk jadual.
-3. Auto ekstrak tajuk/kategori produk daripada link Shopee atau affiliate.
-4. Tukar render dinamik daripada `innerHTML` kepada DOM builder dan `textContent`.
-5. Pisahkan runtime data daripada repo supaya `status.json` tidak sentiasa dirty.
-6. Tambah Automation Health Dashboard.
-7. Tambah Preview Netizen sebelum publish live.
+1. Pantau Product Audit untuk siri lama yang belum ada `productTitle`.
+2. Tambah export/import backup untuk `work/runtime/`.
+3. Tambah pilihan tone rewrite dalam Preview Netizen: lebih soft sell, lebih deep story, atau lebih direct CTA.
+4. Tambah dashboard usage DeepSeek per run dan anggaran kos.
 
 ## Larangan Penting
 

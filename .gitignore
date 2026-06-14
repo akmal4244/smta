@@ -3,6 +3,7 @@ node_modules/
 .env.*
 !.env.example
 work/private/
+work/runtime/
 publish-log.json
 .preview/
 *.log

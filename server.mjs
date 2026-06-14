@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = here;
-const port = Number(process.env.SMTA_PORT || process.argv[2] || 80);
-const host = process.env.SMTA_HOST || "0.0.0.0";
+const port = Number(process.env.THREADSME_PORT || process.argv[2] || 80);
+const host = process.env.THREADSME_HOST || "0.0.0.0";
 const publicPort = port === 80 ? "" : `:${port}`;
 
 const mime = new Map([
@@ -23,7 +23,7 @@ const mime = new Map([
 
 function resolveRequest(url) {
   const cleanPath = decodeURIComponent(new URL(url, `http://${host}:${port}`).pathname);
-  const appPath = cleanPath.replace(/^\/smta(?=\/|$)/i, "").replace(/^\/mta(?=\/|$)/i, "") || "/";
+  const appPath = cleanPath.replace(/^\/threadsme(?=\/|$)/i, "") || "/";
   const normalized = appPath.endsWith("/") ? `${appPath}index.html` : appPath;
   const target = path.resolve(root, `.${normalized}`);
   if (!target.startsWith(root)) return null;
@@ -54,5 +54,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`SMTA listening at http://localhost${publicPort}/smta/`);
+  console.log(`ThreadsMe listening at http://localhost${publicPort}/threadsme/`);
 });

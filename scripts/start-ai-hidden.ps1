@@ -6,7 +6,7 @@ $healthUrl = "http://127.0.0.1:8788/api/health"
 try {
   $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2
   if ($response.StatusCode -eq 200) {
-    Write-Output "SMTA AI server already running at $healthUrl"
+    Write-Output "ThreadsMe AI server already running at $healthUrl"
     exit 0
   }
 } catch {
@@ -23,7 +23,7 @@ Start-Sleep -Seconds 2
 
 try {
   $response = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 5
-  Write-Output "SMTA AI server started: $($response.StatusCode)"
+  Write-Output "ThreadsMe AI server started: $($response.StatusCode)"
 } catch {
-  Write-Output "SMTA AI server start requested, but health check is not ready yet."
+  Write-Output "ThreadsMe AI server start requested, but health check is not ready yet."
 }

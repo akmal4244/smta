@@ -1,8 +1,10 @@
-# Backlog Tambah Baik SMTA
+# Backlog Tambah Baik ThreadsMe
 
 Fail ini menyimpan cadangan tambah baik yang sudah dikenal pasti supaya kerja seterusnya boleh disambung dengan jelas.
 
 ## P0 - Kualiti Produk dan Story
+
+Status v0.9.0: asas `Product Audit`, `Quality Gate`, `Product Intelligence`, `Automation Health`, `Preview Netizen`, runtime `work/runtime/`, dan render DOM selamat sudah dibina. Backlog ini kini fokus kepada penambahbaikan selepas modul asas stabil.
 
 ### Product Audit
 
@@ -13,10 +15,9 @@ Masalah:
 
 Cadangan:
 
-- Tambah modul `Product Audit`.
-- Paparkan batch yang tiada `productTitle`.
-- Benarkan user set tajuk produk dan kategori secara batch.
-- Tambah tindakan `Regenerate story` untuk siri yang tidak relevan.
+- Tambah bulk select yang lebih selesa.
+- Tambah diff preview sebelum regenerate menggantikan story lama.
+- Tambah log audit per siri supaya perubahan metadata boleh dijejak.
 
 ### Quality Gate
 
@@ -26,15 +27,14 @@ Masalah:
 
 Cadangan:
 
-- Semak setiap siri sebelum masuk jadual.
-- Skor minimum:
+- Perketat skor minimum:
   - relevan dengan produk,
   - hook kuat,
   - BM Malaysia natural,
   - tidak claim berlebihan,
   - Reply 2 ada link,
   - semua bahagian bawah 300 aksara.
-- Jika gagal, statuskan sebagai `Perlu Semak`.
+- Jika gagal, status kekal `Perlu Semak` dan jangan publish live.
 
 ## P1 - Automasi Produk Shopee
 
@@ -47,9 +47,9 @@ Masalah:
 
 Cadangan:
 
-- Bila user paste link Shopee/affiliate, SMTA cuba cari tajuk produk, kategori, dan manfaat asas.
-- Paparkan cadangan kepada user untuk confirm sebelum generate.
-- Simpan metadata dalam `story-runs.json` dan `threads_flexi_marble_schedule.json`.
+- Tingkatkan ekstraksi produk untuk Shopee redirect/affiliate yang tidak expose HTML biasa.
+- Tambah cache product intel supaya semakan link sama tidak ulang network call.
+- Paparkan beberapa calon tajuk produk untuk user pilih.
 
 ## P1 - Keselamatan Frontend
 
@@ -62,9 +62,7 @@ Masalah:
 
 Cadangan:
 
-- Tukar render data dinamik kepada DOM builder dan `textContent`.
-- Kekalkan `innerHTML` hanya untuk template statik yang tidak memuatkan input user/AI.
-- Tambah helper kecil untuk cipta badge/status dengan selamat.
+- Tambah ujian frontend kecil untuk pastikan teks `<script>` dipapar sebagai teks, bukan HTML.
 
 ## P2 - Data dan Repo Hygiene
 
@@ -77,9 +75,8 @@ Masalah:
 
 Cadangan:
 
-- Pindahkan runtime state ke `work/runtime/` atau `data/runtime/`.
-- Commit hanya template/example JSON.
 - Tambah export/import backup melalui GUI.
+- Tambah button `Compact runtime` untuk archive log lama.
 
 ## P2 - Dashboard Operasi
 
@@ -87,14 +84,9 @@ Cadangan:
 
 Cadangan panel:
 
-- AI server OK.
-- DeepSeek key OK.
-- Pending aktif `25/25`.
-- Blocked/Remaining.
-- Publisher mode.
-- Last sync.
-- Next due.
-- Last error.
+- Tambah last error dan next due yang lebih terperinci.
+- Tambah signal uptime worker.
+- Tambah button restart AI server jika integrasi desktop membenarkan.
 
 ### Usage Dashboard
 
@@ -112,9 +104,8 @@ Cadangan panel:
 
 Cadangan:
 
-- Paparkan siri seperti thread sebenar.
-- Highlight ayat terlalu iklan, terlalu generik, atau tidak kena produk.
 - Tambah butang `Baiki tone`, `Lebih deep story`, `Lebih soft sell`, dan `Lebih direct CTA`.
+- Tambah preview visual seperti Threads sebenar dengan avatar dan reply chain.
 
 ### Mobile Navigation
 
