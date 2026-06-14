@@ -389,15 +389,13 @@ function getFilteredPosts() {
 }
 
 function renderMetrics() {
-  const counts = getStatusCounts();
-
   els.systemStatus.textContent = state.systemStatus;
   els.systemNote.textContent = state.systemNote;
   els.totalPosts.textContent = state.posts.length;
-  els.passedPosts.textContent = counts.passed || 0;
-  els.pendingPosts.textContent = counts.pending || 0;
-  els.failedPosts.textContent = counts.failed || 0;
-  els.blockedPosts.textContent = (counts.blocked || 0) + (counts.prepared || 0);
+  els.passedPosts.textContent = state.posted.length;
+  els.pendingPosts.textContent = state.scheduled.length;
+  els.failedPosts.textContent = state.failed.length;
+  els.blockedPosts.textContent = state.remaining.length + state.prepared.length;
 }
 
 function renderQueue() {
@@ -506,8 +504,7 @@ function renderStatusTable() {
     return;
   }
   els.statusTable.replaceChildren(...rows);
-  const counts = getStatusCounts();
-  const pendingCount = counts.pending || 0;
+  const pendingCount = state.scheduled.length;
   const automationText = state.automationOnline ? "Auto sync 60s aktif" : "Auto server offline";
   els.statusTableNote.textContent = `${automationText} | Pending aktif ${pendingCount}/${THREADS_SCHEDULE_LIMIT}`;
 }

@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | Sistem Marvis Threads Auto (SMTA) |
 | Repo slug | smta |
-| Versi | v0.7.8 |
+| Versi | v0.7.9 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -178,6 +178,11 @@ SMTA kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas SMTA berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.7.9
+
+- Betulkan metrik dashboard supaya `Pending` ikut queue rasmi `scheduled` dan kekal 25/25 apabila automasi penuh.
+- Nota status table kini papar `Pending aktif 25/25` berdasarkan queue automation, bukan kiraan paparan slot.
 
 ### v0.7.8
 
