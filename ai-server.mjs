@@ -516,6 +516,346 @@ async function ensureRuntimeFiles() {
   await ensureRuntimeFile(storyRunsFile, legacyStoryRunsFile, { runs: [] });
   await ensureRuntimeFile(publishLogFile, legacyPublishLogFile, { entries: [] });
   await ensureRuntimeFile(productIntelCacheFile, path.join(here, "product-intel-cache.json"), { entries: [] });
+  await repairEmptyRuntimeSchedule();
+  await repairRuntimeScheduleMetadataFromStoryRuns();
+  await repairProductIntelCacheFromStoryRuns();
+}
+
+function countStatusNumbers(statusData = {}) {
+  return ["scheduled", "posted", "failed", "prepared", "remaining"].reduce(
+    (total, key) => total + uniqueSortedNumbers(statusData[key]).length,
+    0,
+  );
+}
+
+function normalizeRecoveredProductKey(value) {
+  return cleanTitleCandidate(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function isGenericRecoveredTitle(value) {
+  const key = normalizeRecoveredProductKey(value);
+  return Boolean(
+    key === "organizer rumah" ||
+      key === "lampu led hiasan" ||
+      key === "dekorasi dinding hiasan rumah diy" ||
+      key === "hiasan rumah diy" ||
+      key === "produk rumah" ||
+      key === "barang kecil" ||
+      key === "room divider lipat",
+  );
+}
+
+function chooseRecoveredCategory(title, category, fallbackText = "") {
+  const cleanTitle = cleanTitleCandidate(title);
+  const cleanCategory = cleanTitleCandidate(category);
+  if (cleanCategory && normalizeRecoveredProductKey(cleanCategory) !== normalizeRecoveredProductKey(cleanTitle)) {
+    return cleanCategory;
+  }
+  return inferProductCategoryFromText([cleanTitle, fallbackText].filter(Boolean).join(" "));
+}
+
+function createRecoveredProduct(title, category, source, confidence, fallbackText = "") {
+  const productTitle = cleanTitleCandidate(title);
+  if (!isUsefulProductTitle(productTitle)) return null;
+  if (source !== "story_run_recovered" && looksLikeStorySentence(productTitle)) return null;
+  return {
+    title: productTitle,
+    category: chooseRecoveredCategory(productTitle, category, fallbackText),
+    source,
+    confidence,
+    authoritative: source === "story_run_recovered",
+  };
+}
+
+function buildRunProductCandidate(run = {}, version = {}) {
+  const runCandidate = createRecoveredProduct(
+    run.productTitle || "",
+    run.productCategory || version.productCategory || "",
+    "story_run_recovered",
+    98,
+    [run.productName, run.affiliateLink].filter(Boolean).join(" "),
+  );
+  const versionCandidate = createRecoveredProduct(
+    version.productTitle || "",
+    version.productCategory || run.productCategory || "",
+    "story_run_recovered",
+    96,
+    [run.productName, run.affiliateLink].filter(Boolean).join(" "),
+  );
+  if (!runCandidate) return versionCandidate || null;
+  if (!versionCandidate) return runCandidate;
+  if (normalizeRecoveredProductKey(runCandidate.title) === normalizeRecoveredProductKey(versionCandidate.title)) return runCandidate;
+  return runCandidate;
+}
+
+function buildAffiliateProductMap(runs) {
+  const map = new Map();
+  for (const run of runs) {
+    const affiliate = String(run.affiliateLink || "").trim();
+    if (!affiliate) continue;
+    const candidate = buildRunProductCandidate(run, {});
+    if (candidate) {
+      map.set(affiliate, candidate);
+      continue;
+    }
+    for (const version of run.versions || []) {
+      const versionCandidate = buildRunProductCandidate(run, version);
+      if (versionCandidate) {
+        map.set(affiliate, versionCandidate);
+        break;
+      }
+    }
+  }
+  return map;
+}
+
+function buildInferredProductCandidate(post = {}, run = {}, version = {}) {
+  const context = [
+    run.productName,
+    run.affiliateLink,
+    post.affiliateLink,
+    post.imageUrl,
+    post.imageName,
+    version.productCategory,
+    run.productCategory,
+    post.productCategory,
+    post.main,
+    post.reply1,
+    post.reply2,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const inferred = inferStoryProductCandidate(context);
+  if (inferred) {
+    return createRecoveredProduct(inferred.title, inferred.category, "story_inferred", 88, context);
+  }
+  const fileTitle = cleanTitleCandidate(String(run.productName || post.imageName || "").replace(/\.(?:webp|png|jpe?g)$/i, "").replace(/[-_]+/g, " "));
+  return createRecoveredProduct(fileTitle, "", "product_name_recovered", 78, context);
+}
+
+function resolveRecoveredProduct({ post, run, version, affiliateProductMap, scheduleData }) {
+  const affiliate = String(post.affiliateLink || version.affiliateLink || run.affiliateLink || scheduleData.affiliate_link || "").trim();
+  return (
+    buildRunProductCandidate(run, version) ||
+    (affiliate ? affiliateProductMap.get(affiliate) : null) ||
+    buildInferredProductCandidate(post, run, version)
+  );
+}
+
+function shouldApplyRecoveredProduct(post, recovered) {
+  if (!recovered?.title) return false;
+  const current = cleanTitleCandidate(post.productTitle || "");
+  if (!current) return true;
+  if (normalizeRecoveredProductKey(current) === normalizeRecoveredProductKey(recovered.title)) return false;
+  const evidence = String(post.productIntelEvidence || "").toLowerCase();
+  if (evidence === "manual_verified" || evidence === "link_verified" || post.manualProductOverride) return false;
+  if (recovered.authoritative) return true;
+  return isGenericRecoveredTitle(current) && recovered.confidence >= 85;
+}
+
+function applyRecoveredProductToPost(post, recovered, affiliateLink) {
+  const previousTitle = cleanTitleCandidate(post.productTitle || "");
+  post.productTitle = recovered.title;
+  post.productCategory = recovered.category || post.productCategory || inferProductCategoryFromText(recovered.title);
+  post.productVerified = true;
+  post.productIntelAutoFilled = Boolean(post.productIntelAutoFilled || recovered.source !== "story_run_recovered");
+  post.productIntelEvidence = recovered.source;
+  post.productIntelConfidence = Math.max(Number(post.productIntelConfidence || 0), recovered.confidence);
+  post.productIntelSource = recovered.source === "story_run_recovered"
+    ? "ThreadsMe runtime repair daripada story-runs"
+    : "ThreadsMe runtime repair daripada affiliate/story context";
+  post.productAuditNote = previousTitle && normalizeRecoveredProductKey(previousTitle) !== normalizeRecoveredProductKey(recovered.title)
+    ? `Auto repair: produk dibetulkan daripada "${previousTitle}" kepada "${recovered.title}".`
+    : `Auto repair: tajuk produk dipulihkan sebagai "${recovered.title}".`;
+
+  if (post.source === "generated") {
+    const quality = auditStoryQuality(post, { productTitle: post.productTitle, productCategory: post.productCategory, affiliateLink }, affiliateLink);
+    post.qualityStatus = quality.status;
+    post.qualityScore = quality.score;
+    post.qualityChecks = quality.checks;
+    post.qualityReasons = quality.reasons;
+    post.autoAuditStatus = quality.status === "passed" ? "auto_repaired_passed" : "needs_regenerate";
+    post.autoAuditDecision = quality.status === "passed"
+      ? "Metadata produk dipulihkan dan story lulus Quality Gate."
+      : "Metadata produk dipulihkan, tetapi story perlu regenerate supaya selari dengan produk sebenar.";
+    post.autoAuditAt = `${malaysiaNow()} GMT+8`;
+  }
+}
+
+async function repairEmptyRuntimeSchedule() {
+  const [scheduleData, statusData, legacySchedule] = await Promise.all([
+    readJsonFile(scheduleFile, { posts: [] }),
+    readJsonFile(statusFile, {}),
+    readJsonFile(legacyScheduleFile, { posts: [] }),
+  ]);
+  const hasRuntimePosts = Array.isArray(scheduleData.posts) && scheduleData.posts.length > 0;
+  const legacyPosts = Array.isArray(legacySchedule.posts) ? legacySchedule.posts : [];
+  if (hasRuntimePosts || !legacyPosts.length || countStatusNumbers(statusData) === 0) return false;
+
+  await writeJsonFile(scheduleFile, {
+    ...legacySchedule,
+    restoredAt: `${malaysiaNow()} GMT+8`,
+    restoredReason: "Runtime schedule kosong tetapi status queue masih aktif. ThreadsMe pulihkan daripada legacy schedule lengkap.",
+    previousEmptyScheduleMeta: {
+      lastAutoProductAuditAt: scheduleData.lastAutoProductAuditAt || "",
+      lastAutoProductAuditNote: scheduleData.lastAutoProductAuditNote || "",
+    },
+  });
+  return true;
+}
+
+async function repairRuntimeScheduleMetadataFromStoryRuns() {
+  const [scheduleData, runs] = await Promise.all([
+    readJsonFile(scheduleFile, { posts: [] }),
+    readStoryRuns(),
+  ]);
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  if (!posts.length || !runs.length) return false;
+
+  const versionMap = new Map();
+  for (const run of runs) {
+    for (const version of run.versions || []) {
+      const number = Number(version.scheduleNumber);
+      if (!Number.isInteger(number) || number < 1) continue;
+      versionMap.set(number, { run, version });
+    }
+  }
+  if (!versionMap.size) return false;
+
+  const affiliateProductMap = buildAffiliateProductMap(runs);
+  let repaired = 0;
+  let corrected = 0;
+  let metadataTouched = 0;
+  let runsTouched = false;
+  posts.forEach((post, index) => {
+    const number = index + 1;
+    const match = versionMap.get(number);
+    const run = match?.run || {};
+    const version = match?.version || {};
+    const affiliateLink = String(post.affiliateLink || version.affiliateLink || run.affiliateLink || scheduleData.affiliate_link || "").trim();
+    const recovered = resolveRecoveredProduct({ post, run, version, affiliateProductMap, scheduleData });
+    const currentTitle = cleanTitleCandidate(post.productTitle || "");
+    const shouldApply = shouldApplyRecoveredProduct(post, recovered);
+
+    if (affiliateLink && !post.affiliateLink) {
+      post.affiliateLink = affiliateLink;
+      metadataTouched += 1;
+    }
+    if (shouldApply) {
+      if (currentTitle) corrected += 1;
+      else repaired += 1;
+      applyRecoveredProductToPost(post, recovered, affiliateLink);
+    } else if (recovered?.category && !post.productCategory) {
+      post.productCategory = recovered.category;
+      metadataTouched += 1;
+    }
+
+    if (recovered?.title && match) {
+      if (!version.productTitle || normalizeRecoveredProductKey(version.productTitle) !== normalizeRecoveredProductKey(recovered.title)) {
+        version.productTitle = recovered.title;
+        version.productCategory = version.productCategory || recovered.category;
+        version.productVerified = true;
+        version.productIntelEvidence = recovered.source;
+        version.productIntelConfidence = recovered.confidence;
+        version.updatedAt = `${malaysiaNow()} GMT+8`;
+        runsTouched = true;
+      }
+      if (!run.productTitle) {
+        run.productTitle = recovered.title;
+        run.productCategory = run.productCategory || recovered.category;
+        run.updatedAt = `${malaysiaNow()} GMT+8`;
+        runsTouched = true;
+      }
+    }
+
+    if (match) {
+      if (version.label && !post.generatedLabel) {
+        post.generatedLabel = version.label;
+        metadataTouched += 1;
+      }
+      if (run.imageUrl && !post.imageUrl) {
+        post.imageUrl = run.imageUrl;
+        metadataTouched += 1;
+      }
+      if (version.qualityStatus && !post.qualityStatus) {
+        post.qualityStatus = version.qualityStatus;
+        metadataTouched += 1;
+      }
+      if (version.qualityScore && !post.qualityScore) {
+        post.qualityScore = version.qualityScore;
+        metadataTouched += 1;
+      }
+      if (Array.isArray(version.qualityChecks) && !post.qualityChecks) {
+        post.qualityChecks = version.qualityChecks;
+        metadataTouched += 1;
+      }
+      if (Array.isArray(version.qualityReasons) && !post.qualityReasons) {
+        post.qualityReasons = version.qualityReasons;
+        metadataTouched += 1;
+      }
+    }
+
+    if (!match && affiliateLink && affiliateProductMap.has(affiliateLink)) {
+      const affiliateRecovered = affiliateProductMap.get(affiliateLink);
+      if (shouldApplyRecoveredProduct(post, affiliateRecovered)) {
+        if (currentTitle) corrected += 1;
+        else repaired += 1;
+        applyRecoveredProductToPost(post, affiliateRecovered, affiliateLink);
+      }
+    }
+  });
+
+  if (!repaired && !corrected && !metadataTouched && !runsTouched) return false;
+  scheduleData.posts = posts;
+  scheduleData.lastRuntimeRepairAt = `${malaysiaNow()} GMT+8`;
+  scheduleData.lastRuntimeRepairNote = `${repaired} tajuk dipulihkan, ${corrected} tajuk dibetulkan, ${metadataTouched} metadata diselaraskan daripada story-runs.`;
+  await writeJsonFile(scheduleFile, scheduleData);
+  if (runsTouched) await writeStoryRuns(runs);
+  return true;
+}
+
+async function repairProductIntelCacheFromStoryRuns() {
+  const runs = await readStoryRuns();
+  if (!runs.length) return false;
+  const affiliateProductMap = buildAffiliateProductMap(runs);
+  if (!affiliateProductMap.size) return false;
+
+  const data = await readJsonFile(productIntelCacheFile, { entries: [] });
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  let touched = false;
+  for (const entry of entries) {
+    const affiliate = String(entry.key || "").replace(/^url:/, "").replace(/^affiliate:/, "");
+    const recovered = affiliateProductMap.get(affiliate);
+    if (!recovered?.title) continue;
+    const currentTitle = cleanTitleCandidate(entry.intel?.productTitle || "");
+    if (currentTitle && normalizeRecoveredProductKey(currentTitle) === normalizeRecoveredProductKey(recovered.title)) continue;
+    if (entry.intel?.evidenceLevel === "link_verified" || entry.intel?.evidenceLevel === "provided") continue;
+    entry.intel = {
+      ...(entry.intel || {}),
+      productTitle: recovered.title,
+      productCategory: recovered.category || entry.intel?.productCategory || inferProductCategoryFromText(recovered.title),
+      confidence: Math.max(Number(entry.intel?.confidence || 0), recovered.confidence),
+      evidenceLevel: recovered.source,
+      source: "ThreadsMe story-runs cache repair",
+      autoResolvable: true,
+      linkVerified: Boolean(entry.intel?.linkVerified),
+      note: "Cache dibetulkan daripada story-runs supaya autopilot tidak guna metadata lama yang tersasar.",
+      repairedAt: `${malaysiaNow()} GMT+8`,
+    };
+    touched = true;
+  }
+
+  if (!touched) return false;
+  await writeJsonFile(productIntelCacheFile, {
+    ...data,
+    version: data.version || 1,
+    updatedAt: `${malaysiaNow()} GMT+8`,
+    entries,
+  });
+  return true;
 }
 
 async function readPublishLog() {
@@ -1062,6 +1402,8 @@ async function runThreadsPublisherDue({ scheduleData, statusData, config, hasTok
 }
 
 async function runThreadsMeAutomation() {
+  await repairRuntimeScheduleMetadataFromStoryRuns();
+  await repairProductIntelCacheFromStoryRuns();
   const autoAudit = await runAutoProductAudit();
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const statusData = await readJsonFile(statusFile, {});
@@ -1382,6 +1724,46 @@ function tokenizeProductText(value) {
   );
 }
 
+function hasSemanticProductRelevance(productText, fullText) {
+  const product = String(productText || "").toLowerCase();
+  const text = String(fullText || "").toLowerCase();
+  const rules = [
+    {
+      product: /sambal|cili|chili|pedas|lauk|selera/,
+      terms: ["sambal", "pedas", "lauk", "selera", "nasi", "makan", "telur", "ayam", "ikan", "dapur", "balang", "cedok"],
+      primary: ["sambal", "pedas", "lauk"],
+      minimum: 2,
+    },
+    {
+      product: /marble|wallpaper|dinding|sheet|dekor|deco/,
+      terms: ["marble", "dinding", "wall", "sticker", "sheet", "dekor", "ruang", "rumah", "kemas", "premium", "focal"],
+      primary: ["marble", "dinding", "sheet"],
+      minimum: 2,
+    },
+    {
+      product: /lampu|light|led|fairy|solar|street/,
+      terms: ["lampu", "light", "led", "cahaya", "terang", "malam", "luar", "outdoor", "jalan", "solar", "gelap"],
+      primary: ["lampu", "light", "led", "solar"],
+      minimum: 2,
+    },
+    {
+      product: /organizer|storage|rak|kotak|susun|divider/,
+      terms: ["organizer", "storage", "rak", "kotak", "susun", "kemas", "barang", "ruang", "meja", "simpan", "divider"],
+      primary: ["organizer", "storage", "rak", "kotak", "susun"],
+      minimum: 2,
+    },
+  ];
+  const rule = rules.find((item) => item.product.test(product));
+  if (!rule) return false;
+  const matchedTerms = new Set(rule.terms.filter((term) => text.includes(term)));
+  const repeatedPrimary = (rule.primary || []).some((term) => {
+    const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const matches = text.match(new RegExp(`\\b${escaped}\\b`, "g")) || [];
+    return matches.length >= 2;
+  });
+  return matchedTerms.size >= rule.minimum || repeatedPrimary;
+}
+
 function auditStoryQuality(version, input, affiliateLink) {
   const productTitle = String(input.productTitle || "").trim();
   const productCategory = String(input.productCategory || "").trim();
@@ -1394,6 +1776,7 @@ function auditStoryQuality(version, input, affiliateLink) {
   const fullText = `${parts.main} ${parts.reply1} ${parts.reply2}`.toLowerCase();
   const productTokens = tokenizeProductText(`${productTitle} ${productCategory}`);
   const matchedProductTokens = productTokens.filter((token) => fullText.includes(token));
+  const semanticRelevanceOk = hasSemanticProductRelevance(`${productTitle} ${productCategory}`, fullText);
   const claimPattern = /\b(confirm|konfem|jamin|guarantee|100%|sembuh|rawat|hilang terus|paling murah|termurah|viral gila|wajib beli)\b/i;
   const typoPattern = /\b(tgok|macan|ubsuasana|mmg|x\s?yah|takde|sngt)\b/i;
   const hardIssues = [];
@@ -1407,7 +1790,7 @@ function auditStoryQuality(version, input, affiliateLink) {
   checks.push({ key: "affiliate", label: "Reply 2 tamat dengan link affiliate", passed: linkOk });
   if (!linkOk) hardIssues.push("Reply 2 tidak tamat dengan link affiliate tepat.");
 
-  const relevanceOk = !productTokens.length || matchedProductTokens.length >= Math.min(2, productTokens.length);
+  const relevanceOk = !productTokens.length || matchedProductTokens.length >= Math.min(2, productTokens.length) || semanticRelevanceOk;
   checks.push({ key: "relevance", label: "Relevan dengan tajuk/kategori produk", passed: relevanceOk });
   if (!relevanceOk) hardIssues.push("Story tidak cukup menyebut konteks produk sebenar.");
 
@@ -2045,6 +2428,8 @@ async function autoCompleteStoryProductInput(input) {
 }
 
 async function runAutoProductAudit() {
+  await repairRuntimeScheduleMetadataFromStoryRuns();
+  await repairProductIntelCacheFromStoryRuns();
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const statusData = await readJsonFile(statusFile, {});
   const runs = await readStoryRuns();
