@@ -385,6 +385,8 @@ async function submitAuth() {
 }
 
 async function logoutAdmin() {
+  const confirmed = window.confirm("Anda pasti mahu log keluar daripada ThreadsMe?");
+  if (!confirmed) return;
   try {
     await apiFetch("/api/auth/logout", { method: "POST", cache: "no-store" });
   } catch {
