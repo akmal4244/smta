@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | Sistem Marvis Threads Auto (SMTA) |
 | Repo slug | smta |
-| Versi | v0.7.7 |
+| Versi | v0.7.8 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -68,6 +68,12 @@ Jalankan server AI dalam terminal lain:
 
 ```bash
 npm run ai
+```
+
+Atau hidupkan server AI secara background:
+
+```bash
+npm run ai:hidden
 ```
 
 Server AI default:
@@ -172,6 +178,14 @@ SMTA kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas SMTA berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.7.8
+
+- Fix fungsi Jana Story apabila AI server offline atau DeepSeek key tiada.
+- Tambah fallback story generator tempatan supaya output masih dijana dan terus masuk Jadual Threads.
+- Tambah endpoint `/api/system-data` supaya GUI XAMPP baca jadual/status dinamik dari AI server.
+- Tambah script `npm run ai:hidden` untuk hidupkan SMTA AI server di background.
+- Update mesej error frontend supaya tidak hanya papar `Failed to fetch`.
 
 ### v0.7.7
 

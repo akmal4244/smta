@@ -990,39 +990,172 @@ function enforceGeneratedStoryRules(versions, affiliateLink) {
   }));
 }
 
-async function generateStory(input) {
-  const apiKey = await getApiKey();
-  const prompt = buildPrompt(input);
-  const affiliateLink = String(input.affiliateLink || "https://s.shopee.com.my/7VDqSOoKf3").trim();
-  const response = await fetch(deepseekUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: "deepseek-v4-flash",
-      messages: prompt.messages,
-      thinking: { type: "disabled" },
-      response_format: { type: "json_object" },
-      temperature: 0.85,
-      max_tokens: 12000,
-      stream: false,
-    }),
-  });
+function limitPostText(text, maxLength = 300) {
+  const clean = String(text || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength).replace(/\s+\S*$/g, "").trim();
+}
 
-  const raw = await response.text();
-  if (!response.ok) {
-    throw new Error(`DeepSeek API error ${response.status}: ${raw.slice(0, 300)}`);
+function inferFallbackProduct(input) {
+  const context = [
+    input.sourceText,
+    input.imageNotes,
+    input.imageName,
+    input.imageUrl,
+  ]
+    .map((value) => String(value || "").toLowerCase())
+    .join(" ");
+
+  if (/sambal|cili|chili|sos|pedas|makan|lauk/.test(context)) {
+    return {
+      name: "sambal ni",
+      moment: "bila makan ringkas pun rasa macam ada benda yang cukup",
+      bridge: "Kalau hari-hari sibuk dan nak lauk yang mudah naikkan selera",
+    };
   }
 
-  const payload = JSON.parse(raw);
-  const content = payload.choices?.[0]?.message?.content || "{}";
-  const parsed = JSON.parse(content);
+  if (/marble|dinding|wall|sheet|wallpaper|rumah|deko|dekor/.test(context)) {
+    return {
+      name: "flexi marble sheet ni",
+      moment: "bila nak mula kemaskan satu sudut rumah tanpa renovate besar",
+      bridge: "Kalau tengah cari cara kecil untuk bagi ruang nampak lebih kemas",
+    };
+  }
+
+  if (/lampu|light|led|fairy|bilik|meja/.test(context)) {
+    return {
+      name: "lampu kecil ni",
+      moment: "bila ruang biasa tiba-tiba rasa lebih tenang waktu malam",
+      bridge: "Kalau nak mula ubah mood bilik atau meja kerja dengan bajet kecil",
+    };
+  }
+
+  if (/organizer|storage|rak|kotak|susun|kemas/.test(context)) {
+    return {
+      name: "organizer ni",
+      moment: "bila barang yang selalu bersepah akhirnya ada tempat sendiri",
+      bridge: "Kalau tengah cuba kemaskan rutin rumah sedikit demi sedikit",
+    };
+  }
+
   return {
-    versions: enforceGeneratedStoryRules(normalizeVersions(parsed), affiliateLink),
-    usage: payload.usage || null,
+    name: "produk ni",
+    moment: "bila satu benda kecil boleh buat rutin harian rasa kurang berat",
+    bridge: "Kalau tengah cari benda kecil yang boleh bantu mulakan perubahan",
   };
+}
+
+function buildFallbackStories(input, affiliateLink) {
+  const requested = Math.max(1, Math.min(Number(input.versions || input.postsPerDay || 3), maxPostingPerDay));
+  const product = inferFallbackProduct(input);
+  const theme = String(input.theme || "auto");
+  const painHooks = [
+    "Kadang bukan kita malas. Kita cuma penat nak hadap benda sama setiap hari.",
+    "Ada hari, benda kecil pun boleh buat kepala rasa penuh.",
+    "Pelik kan, hidup nampak biasa tapi dalam hati rasa macam tak cukup ruang.",
+    "Aku pernah rasa serba tak kena walaupun benda tu nampak remeh.",
+    "Bila rutin dah padat, kita mula cari jalan paling mudah untuk rasa lega.",
+  ];
+  const hopeHooks = [
+    "Kadang perubahan besar mula dari satu keputusan kecil je.",
+    "Aku suka bila benda kecil boleh bagi rasa baru dalam hari yang biasa.",
+    "Tak semua benda kena tunggu sempurna baru kita mula.",
+    "Ada satu rasa lega bila kita jumpa cara mudah untuk bantu diri sendiri.",
+    "Rumah dan rutin tak perlu perfect. Cukup ada satu benda yang buat kita rasa lebih baik.",
+  ];
+  const stories = [
+    "Balik kerja, aku selalu fikir nak rehat. Tapi mata tetap nampak benda yang buat mood jatuh sikit.",
+    "Mula-mula aku biar je. Lama-lama baru perasan, benda kecil yang berulang tu yang paling banyak makan tenaga.",
+    "Aku belajar, tak semua masalah harian perlu solusi besar. Kadang cukup mula dengan satu benda yang praktikal.",
+    "Bila ada cara yang mudah, rasa macam hidup ni kurang sikit serabutnya. Tak besar pun, tapi terasa.",
+    "Yang aku cari sebenarnya bukan benda mahal. Aku cuma nak rutin yang nampak lebih ringan dan tak menyusahkan.",
+    "Ada masa kita cuma perlukan satu permulaan kecil untuk rasa macam masih boleh kawal keadaan.",
+  ];
+  const ctas = [
+    "boleh tengok sini",
+    "boleh survey dulu kat sini",
+    "boleh cuba tengok kalau ngam",
+    "boleh simpan link ni dulu",
+    "boleh tengok pilihan ni",
+    "boleh mula semak kat sini",
+  ];
+
+  return Array.from({ length: requested }, (_, index) => {
+    const useHope = theme === "hope" || (theme === "auto" && index % 2 === 1);
+    const hook = useHope ? hopeHooks[index % hopeHooks.length] : painHooks[index % painHooks.length];
+    const story = stories[index % stories.length];
+    const cta = ctas[index % ctas.length];
+    return {
+      label: `Versi ${index + 1}`,
+      main: limitPostText(`${hook} Aku mula perasan, kalau nak rasa hidup lebih ringan, tak semestinya kena ubah semua sekaligus.`),
+      reply1: limitPostText(`${story} Dari situ aku mula pilih solusi yang kecil, senang buat, dan tak rasa membebankan.`),
+      reply2: attachExactAffiliateLink(`${product.bridge}, ${product.name} boleh jadi permulaan. ${product.moment}. Kalau rasa sesuai, ${cta}`, affiliateLink),
+    };
+  });
+}
+
+async function generateStory(input) {
+  const prompt = buildPrompt(input);
+  const affiliateLink = String(input.affiliateLink || "https://s.shopee.com.my/7VDqSOoKf3").trim();
+  let apiKey = "";
+  try {
+    apiKey = await getApiKey();
+  } catch {
+    apiKey = "";
+  }
+
+  if (!apiKey) {
+    return {
+      versions: buildFallbackStories(input, affiliateLink),
+      usage: { provider: "local_fallback", reason: "missing_deepseek_key" },
+      fallback: true,
+      fallbackReason: "DeepSeek API key tiada. SMTA guna fallback tempatan.",
+    };
+  }
+
+  try {
+    const response = await fetch(deepseekUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "deepseek-v4-flash",
+        messages: prompt.messages,
+        thinking: { type: "disabled" },
+        response_format: { type: "json_object" },
+        temperature: 0.85,
+        max_tokens: 12000,
+        stream: false,
+      }),
+    });
+
+    const raw = await response.text();
+    if (!response.ok) {
+      throw new Error(`DeepSeek API error ${response.status}: ${raw.slice(0, 300)}`);
+    }
+
+    const payload = JSON.parse(raw);
+    const content = payload.choices?.[0]?.message?.content || "{}";
+    const parsed = JSON.parse(content);
+    const versions = enforceGeneratedStoryRules(normalizeVersions(parsed), affiliateLink);
+    if (!versions.length) throw new Error("DeepSeek tidak pulangkan versi story.");
+    return {
+      versions,
+      usage: payload.usage || null,
+      fallback: false,
+    };
+  } catch (error) {
+    return {
+      versions: buildFallbackStories(input, affiliateLink),
+      usage: { provider: "local_fallback", reason: "deepseek_failed", error: error.message },
+      fallback: true,
+      fallbackReason: `DeepSeek gagal (${error.message}). SMTA guna fallback tempatan.`,
+    };
+  }
 }
 
 async function saveStoryRun(input, result) {
@@ -1197,6 +1330,13 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/story-runs") {
       sendJson(res, 200, { ok: true, runs: await readStoryRuns() });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/system-data") {
+      const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
+      const statusData = await readJsonFile(statusFile, {});
+      sendJson(res, 200, { ok: true, schedule: scheduleData, status: statusData });
       return;
     }
 

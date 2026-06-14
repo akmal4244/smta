@@ -193,9 +193,19 @@ async function syncAutomationStatus() {
 }
 
 async function loadScheduleData() {
-  const response = await fetch("./threads_flexi_marble_schedule.json", { cache: "no-store" });
-  if (!response.ok) throw new Error("Schedule file failed to load");
-  const data = await response.json();
+  let data = null;
+  try {
+    const response = await fetch(`${AI_SERVER_URL}/api/system-data`, { cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || "System data failed");
+    data = payload.schedule || {};
+    applyStatusData(payload.status || {});
+    state.automationOnline = true;
+  } catch {
+    const response = await fetch("./threads_flexi_marble_schedule.json", { cache: "no-store" });
+    if (!response.ok) throw new Error("Schedule file failed to load");
+    data = await response.json();
+  }
   state.posts = Array.isArray(data.posts) ? data.posts : [];
   state.timezone = data.timezone || state.timezone;
   state.affiliateLink = data.affiliate_link || state.affiliateLink;
@@ -1045,10 +1055,17 @@ function bindStoryGenerator() {
         }
       }
       const scheduleCount = data.run?.schedule?.items?.length || 0;
-      setAiStatus(scheduleCount ? `${scheduleCount} story masuk Jadual Threads` : "DeepSeek sedia", "ready");
+      if (data.fallback) {
+        setAiStatus(scheduleCount ? `${scheduleCount} story fallback masuk jadual` : "Fallback tempatan sedia", "warn");
+      } else {
+        setAiStatus(scheduleCount ? `${scheduleCount} story masuk Jadual Threads` : "DeepSeek sedia", "ready");
+      }
     } catch (error) {
-      els.storyOutput.value = `Gagal generate: ${error.message}`;
-      setAiStatus("Jana gagal", "warn");
+      const offline = /failed to fetch|networkerror|load failed/i.test(error.message);
+      els.storyOutput.value = offline
+        ? "Gagal generate: Server AI SMTA belum hidup. Sila tunggu sebentar dan cuba semula, atau jalankan npm run ai dalam folder smta."
+        : `Gagal generate: ${error.message}`;
+      setAiStatus(offline ? "Server AI offline" : "Jana gagal", "warn");
     } finally {
       els.generateStoryButton.disabled = false;
       els.generateStoryButton.removeAttribute("aria-busy");

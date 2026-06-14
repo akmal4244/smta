@@ -1,10 +1,7 @@
 {
-  "systemStatus": "Automasi aktif - jadual 25 posting/hari",
-  "systemNote": "SMTA sudah disusun kepada 25 posting sehari. Queue aktif kekal maksimum 25 Pending, baki Blocked auto naik bila slot kosong.",
+  "systemStatus": "Automasi aktif - menunggu slot",
+  "systemNote": "63 siri masih Blocked. SMTA akan auto jadikan Pending bila slot jadual kosong.",
   "scheduled": [
-    6,
-    7,
-    8,
     9,
     10,
     11,
@@ -26,21 +23,24 @@
     27,
     28,
     29,
-    30
+    30,
+    31,
+    32,
+    33
   ],
   "posted": [
     1,
     2,
     3,
     4,
-    5
+    5,
+    6,
+    7,
+    8
   ],
   "failed": [],
   "prepared": [],
   "remaining": [
-    31,
-    32,
-    33,
     34,
     35,
     36,
@@ -107,7 +107,7 @@
   ],
   "automationMode": true,
   "automationLimit": 25,
-  "lastAutomationAt": "2026-06-14 01:20 GMT+8",
+  "lastAutomationAt": "2026-06-14 08:41 GMT+8",
   "publisher": {
     "enabled": false,
     "dryRun": true,
