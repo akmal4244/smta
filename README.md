@@ -8,10 +8,11 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | Sistem Marvis Threads Auto (SMTA) |
 | Repo slug | smta |
-| Versi | v0.7.6 |
+| Versi | v0.7.7 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
+| Localhost rasmi | `http://localhost/smta/` |
 
 ## Fungsi Utama
 
@@ -24,7 +25,7 @@ Nama rasmi sistem:
 - Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, dan `Disediakan`.
 - Auto promote `Blocked` kepada `Pending` bila slot schedule kosong.
 - Publisher Threads API dengan mode `Dry-run` dan mode live apabila token rasmi sudah diset.
-- UI refresh gaya `gpt-tasteskill`: Geist typography, sidebar premium, grid gapless, dan motion GSAP.
+- UI refresh gaya Kumo UI dan `gpt-taste`: semantic color token, surface hierarchy, sidebar premium, table compact, focus state jelas, dan motion GSAP yang ringan.
 
 ## Cara Jalankan
 
@@ -110,22 +111,24 @@ publish-log.json
 
 ```text
 smta/
-├─ assets/
-│  ├─ flexi-marble-sheet.png
-│  ├─ smta-favicon.svg
-│  └─ smta-logo.svg
-├─ ai-server.mjs
-├─ app.js
-├─ index.html
-├─ server.mjs
-├─ status.json
-├─ story-runs.json
-├─ styles.css
-├─ threads_flexi_marble_schedule.json
-├─ package.json
-├─ .env.example
-├─ .gitignore
-└─ README.md
+|-- assets/
+|   |-- flexi-marble-sheet.png
+|   |-- smta-favicon.svg
+|   `-- smta-logo.svg
+|-- scripts/
+|   `-- deploy-xampp.ps1
+|-- ai-server.mjs
+|-- app.js
+|-- index.html
+|-- server.mjs
+|-- status.json
+|-- story-runs.json
+|-- styles.css
+|-- threads_flexi_marble_schedule.json
+|-- package.json
+|-- .env.example
+|-- .gitignore
+`-- README.md
 ```
 
 ## Database JSON
@@ -135,7 +138,7 @@ SMTA menggunakan JSON file database supaya ringan dan mudah audit.
 | Fail | Fungsi |
 | --- | --- |
 | `threads_flexi_marble_schedule.json` | Senarai siri posting, slot jadual, CTA, dan affiliate link. |
-| `status.json` | Status queue semasa: scheduled, posted, failed, remaining, publisher config ringkas. |
+| `status.json` | Status queue semasa: scheduled, posted, failed, remaining, dan publisher config ringkas. |
 | `story-runs.json` | Rekod output story yang dijana oleh AI. |
 | `publish-log.json` | Log publisher runtime. Fail ini tidak di-commit. |
 | `work/private/*.json` dan `work/private/*.txt` | Token/API key private. Fail ini tidak di-commit. |
@@ -154,11 +157,27 @@ flowchart TD
   H --> I["Status Lulus atau Gagal"]
 ```
 
+## Prinsip Reka Bentuk
+
+SMTA kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
+
+- Semantic token untuk warna, teks, border, status dan surface.
+- Surface hierarchy yang jelas untuk sidebar, dashboard, calendar, queue, preview dan publisher.
+- Komponen gaya resource-list dan compact table untuk status posting.
+- Focus state dan hover state yang lebih jelas untuk penggunaan harian.
+- Motion GSAP ringan untuk reveal dan hover, bukan animasi berat.
+
 ## Nota Had Threads
 
 SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas SMTA berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.7.7
+
+- Guna prinsip Kumo UI pada SMTA tanpa menukar stack vanilla: semantic tokens, surface hierarchy, table/resource-list pattern, focus states, dan badges status yang lebih jelas.
+- Ganti CSS lama yang bertindih dengan design system lebih kecil, konsisten, dan mudah dibaca.
+- Kemas cache CSS kepada `styles.css?v=10` dan tambah `data-mode="light"` serta `data-theme="kumo"` pada HTML.
 
 ### v0.7.6
 
@@ -179,24 +198,18 @@ SMTA mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual b
 
 ### v0.7.3
 
-- Guna `taste-skill` untuk polish UI SMTA tanpa mengubah fungsi automasi.
-- Ringankan visual dashboard, buang font remote, tambah focus state, dan kompakkan mobile nav.
-- Tambah reduced-motion handling supaya animasi tidak mengganggu pengguna sensitif motion.
+- Tambah option `20 posting / hari` dan jadual kalendar harian.
+- Auto schedule story yang dijana supaya fungsi Jana Story, Jadual Threads, dan status berkait.
 
 ### v0.7.2
 
-- Jadikan URL local rasmi kepada `http://localhost/smta/`.
-- Tambah script `start:dev` untuk fallback `http://localhost:8791/smta/`.
-- Tambah script `deploy:xampp` untuk salin build static ke `C:\xampp\htdocs\smta`.
+- Tambah status story dijana.
+- Sambungkan output AI kepada jadual tempatan SMTA.
 
 ### v0.7.1
 
-- Repo rasmi baru untuk **Sistem Marvis Threads Auto (SMTA)**.
-- UI refresh gaya `gpt-tasteskill`.
-- Nama repo GitHub rasmi: `smta`.
-- Server static portable untuk `/smta/` dan masih sokong `/mta/`.
-- AI server portable dengan `SMTA_WORKSPACE_ROOT`.
+- Kemaskan GUI dengan side menu dan modul berasingan.
 
-## Kredit
+### v0.7.0
 
-Sistem Dibangunkan Sepenuhnya Oleh **Akmal Marvis**.
+- Release awal Sistem Marvis Threads Auto (SMTA).
