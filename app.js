@@ -336,7 +336,10 @@ function renderAuthGate() {
   const needsGate = (auth.authRequired || auth.localLocked) && !auth.authenticated;
   els.authGate.hidden = !needsGate;
   document.body.classList.toggle("auth-locked", needsGate);
-  if (els.logoutButton) els.logoutButton.hidden = !auth.authenticated;
+  if (els.logoutButton) {
+    els.logoutButton.hidden = !auth.authenticated;
+    els.logoutButton.textContent = auth.authRequired ? "Log keluar" : "Kunci skrin";
+  }
   if (!needsGate) return;
   const setup = Boolean(auth.setupRequired);
   if (els.authTitle) els.authTitle.textContent = setup ? "Setup Admin ThreadsMe" : "Login ThreadsMe";
@@ -358,7 +361,7 @@ async function refreshAuthStatus() {
   if (!response.ok || !data.ok) throw new Error(data.error || "Auth status gagal");
   const authRequired = Boolean(data.authRequired);
   const hasPassword = Boolean(data.hasPassword);
-  const localLocked = !authRequired && readLocalAuthLocked();
+  const localLocked = !authRequired && hasPassword && readLocalAuthLocked();
   state.auth = {
     authRequired,
     authenticated: localLocked ? false : Boolean(data.authenticated),
@@ -437,15 +440,18 @@ async function performLogout() {
   } catch {
     // Logout should still clear the UI state even if the server is temporarily unavailable.
   }
-  setLocalAuthLocked(true);
+  const useLocalLock = !state.auth.authRequired && state.auth.hasPassword;
+  setLocalAuthLocked(useLocalLock);
   state.auth = {
     ...state.auth,
-    authenticated: false,
-    setupRequired: !state.auth.hasPassword,
+    authenticated: !useLocalLock,
+    setupRequired: useLocalLock ? false : !state.auth.hasPassword,
     csrfToken: "",
-    localLocked: true,
+    localLocked: useLocalLock,
   };
-  state.appStarted = false;
+  if (useLocalLock) {
+    state.appStarted = false;
+  }
   renderAuthGate();
   hydrateRememberedAuthFields();
 }
