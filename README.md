@@ -35,6 +35,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, `Disediakan`, dan `Perlu Semak`.
 - Auto promote `Blocked` kepada `Pending` bila slot schedule kosong.
 - Auto Audit Produk berjalan bersama sync automation untuk sahkan produk secara autopilot, auto-regenerate story yang tidak selari, dan guard output berisiko.
+- Auto Audit juga memanjangkan semua siri kepada sasaran 250-295 aksara setiap bahagian supaya limit Threads dimanfaatkan tanpa melepasi 300 aksara.
 - Publisher Preflight berjalan sebelum publish live: Quality Gate tempatan, Product Intel, dan DeepSeek final QA mesti lulus sebelum Threads API dipanggil.
 - Pusat `Tindakan Saya` memaparkan ringkasan autopilot; input Akmal hanya optional melalui butang edit/override.
 - Product Audit untuk baiki siri lama yang tiada tajuk produk atau story tidak relevan.
@@ -297,6 +298,12 @@ ThreadsMe kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas ThreadsMe berjaya memasukkan siri ke queue automation.
 
 ## Version Log
+
+### v0.9.9
+
+- Tambah auto length normalizer dalam Auto Audit untuk semua siri, termasuk legacy dan generated.
+- Semua `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` disasarkan 250-295 aksara secara automatik.
+- Product Audit/Automation Health kini boleh mengesan `targetLengthIssueCount` jika ada siri bawah target.
 
 ### v0.9.8
 

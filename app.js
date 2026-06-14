@@ -1155,8 +1155,8 @@ function renderAutomationHealth() {
     {
       label: "Quality Gate",
       value: `${audit.reviewCount || 0} semak`,
-      detail: `${audit.missingProductTitleCount || 0} kosong, ${audit.unverifiedProductCount || 0} belum sah`,
-      tone: (audit.reviewCount || audit.missingProductTitleCount || audit.unverifiedProductCount) ? "warn" : "good",
+      detail: `${audit.missingProductTitleCount || 0} kosong, ${audit.unverifiedProductCount || 0} belum sah, ${audit.targetLengthIssueCount || 0} length`,
+      tone: (audit.reviewCount || audit.missingProductTitleCount || audit.unverifiedProductCount || audit.targetLengthIssueCount) ? "warn" : "good",
     },
     {
       label: "Auto Audit",

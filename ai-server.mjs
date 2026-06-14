@@ -1877,6 +1877,374 @@ function auditStoryQuality(version, input, affiliateLink) {
   };
 }
 
+function inferLengthPolishKind(post) {
+  const title = String(post.productTitle || "").toLowerCase();
+  if (/sambal|nyet|khairulaming/.test(title)) return "sambal";
+  if (/poh\s*kong|\bgold\b|\bemas\b|bunga raya|24k|999/.test(title)) return "gold";
+  if (/solar|outdoor|street|lampu jalan|waterproof|laman|pagar|porch/.test(title)) return "solar";
+  if (/marble|flexi\s*marble|wallpaper|wall\s*sheet|dinding/.test(title)) return "marble";
+  if (/fairy|dawai|kelip|string\s*light/.test(title)) return "dawai";
+
+  const primary = [post.productCategory, post.generatedLabel]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const haystack = [
+    post.productTitle,
+    post.productCategory,
+    post.generatedLabel,
+    post.main,
+    post.reply1,
+    post.reply2,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  if (/sambal|nyet|khairulaming|pedas|lauk|makan|nasi/.test(primary)) return "sambal";
+  if (/poh\s*kong|\bgold\b|\bemas\b|bunga raya|24k|999/.test(primary)) return "gold";
+  if (/solar|outdoor|street|lampu jalan|waterproof|laman|pagar|porch/.test(primary)) return "solar";
+  if (/marble|flexi\s*marble|dinding|wall\s*sheet|wallpaper|renovate/.test(primary)) return "marble";
+  if (/dawai|fairy|kelip|string\s*light|cahaya\s*warm/.test(primary)) return "dawai";
+  if (/sambal|nyet|khairulaming|pedas|lauk|makan|nasi/.test(haystack)) return "sambal";
+  if (/poh\s*kong|\bgold\s*bar\b|\bemas\b|bunga raya|24k|999/.test(haystack)) return "gold";
+  if (/solar|outdoor|street|lampu jalan|waterproof|laman|pagar|porch/.test(haystack)) return "solar";
+  if (/marble|flexi\s*marble|dinding|wall\s*sheet|wallpaper|renovate/.test(haystack)) return "marble";
+  if (/dawai|fairy|kelip|string\s*light|cahaya\s*warm/.test(haystack)) return "dawai";
+  return "generic";
+}
+
+const lengthPolishShortFillers = [
+  " Kecil tapi terasa.",
+  " Itu pun dah cukup.",
+  " Mula kecil pun cukup.",
+  " Mudah nak mula.",
+  " Tak perlu berlebihan.",
+  " Rasa lebih kemas.",
+  " Simple tapi berguna.",
+];
+
+const lengthPolishBanks = {
+  marble: {
+    main: [
+      " Kadang rumah bukan perlu besar, cuma perlu satu sudut yang nampak dijaga.",
+      " Bila mata sedap tengok, hati pun rasa kurang serabut bila masuk rumah.",
+      " Sikit perubahan pada dinding pun boleh buat ruang terasa lebih hidup.",
+    ],
+    reply1: [
+      " Yang aku suka, perubahan macam ni tak perlu kacau satu rumah pun.",
+      " Mula dari satu bahagian kecil pun cukup untuk rasa rumah ada jiwa.",
+      " Bila ruang nampak kemas, mood balik rumah pun rasa lebih ringan.",
+    ],
+    reply2: [
+      " Sesuai kalau nak mula dari satu dinding dulu, terutama ruang TV atau bilik.",
+      " Boleh survey corak dan ukuran yang ngam sebelum mula tampal perlahan-lahan.",
+      " Vibe marble tu bantu ruang nampak clean tanpa perlu renovate besar.",
+    ],
+  },
+  dawai: {
+    main: [
+      " Kadang cahaya lembut sikit pun boleh ubah mood bilik yang hambar.",
+      " Bila malam tak terlalu silau, kepala pun rasa lebih mudah reda.",
+      " Bilik kecil pun boleh rasa cozy bila suasana dia kena dengan hati.",
+    ],
+    reply1: [
+      " Tak perlu deco banyak, cukup ada satu sudut yang nampak hidup.",
+      " Yang best, benda kecil macam ni mudah alih ikut mood dan ruang.",
+      " Bila bilik ada cahaya warm, rasa nak duduk diam pun jadi sedap.",
+    ],
+    reply2: [
+      " Sesuai untuk kepala katil, meja kerja, rak kecil atau tepi cermin.",
+      " Boleh pilih panjang ikut ruang dan susun ikut mood bilik sendiri.",
+      " Kalau ruang rasa kosong, lampu kecil ni boleh jadi permulaan yang mudah.",
+    ],
+  },
+  solar: {
+    main: [
+      " Bila luar rumah terang sikit, hati pun rasa kurang risau waktu malam.",
+      " Kadang rasa selamat bermula dari kawasan yang selalu kita abaikan.",
+      " Balik lewat pun rasa lebih tenang bila depan rumah tak gelap sangat.",
+    ],
+    reply1: [
+      " Bukan nak nampak mewah, cuma nak rumah rasa lebih terjaga.",
+      " Perubahan kecil ni terasa setiap kali keluar masuk rumah waktu malam.",
+      " Bila tetamu datang malam pun, kawasan depan nampak lebih kemas dan jelas.",
+    ],
+    reply2: [
+      " Sesuai untuk porch, pagar, laman atau laluan kecil yang selalu gelap.",
+      " Bila cahaya auto menyala malam, kawasan luar terus rasa lebih terjaga.",
+      " Kalau ada sudut gelap, boleh mula dengan satu lampu dulu sebelum tambah lain.",
+    ],
+  },
+  sambal: {
+    main: [
+      " Kadang yang kita cari cuma lauk ringkas yang buat nasi panas rasa cukup.",
+      " Bila penat kerja, benda paling lega ialah makanan cepat yang masih ada rasa.",
+      " Hari biasa pun boleh rasa lebih baik bila makan tak hambar sangat.",
+    ],
+    reply1: [
+      " Bukan setiap hari kita rajin masak lauk penuh, tapi perut tetap nak puas.",
+      " Masa macam ni, satu benda pedas yang kena tekak boleh selamatkan mood makan.",
+      " Paling best bila boleh makan dengan telur, ayam goreng, roti atau nasi kosong.",
+    ],
+    reply2: [
+      " Sesuai simpan di rumah untuk hari malas masak tapi tetap nak makan sedap.",
+      " Boleh jadi penambah rasa untuk nasi panas, lauk ringkas atau bekal cepat.",
+      " Kalau suka sambal ready-to-eat yang mudah, boleh survey pilihan ni dulu.",
+    ],
+  },
+  gold: {
+    main: [
+      " Kadang kita cuma nak mula simpan sesuatu yang kecil tapi terasa bermakna.",
+      " Bukan semua simpanan perlu nampak besar; yang penting kita mula dengan sedar.",
+      " Ada rasa puas bila beli sesuatu yang bukan sekadar cantik, tapi boleh disimpan.",
+    ],
+    reply1: [
+      " Aku suka idea mula kecil, sebab tak semua orang mampu terus beli berat besar.",
+      " Untuk hadiah pun nampak kemas, sebab nilainya rasa lebih personal dan tersimpan.",
+      " Yang penting, beli ikut kemampuan sendiri dan faham tujuan simpanan tu.",
+    ],
+    reply2: [
+      " Gold bar kecil macam ni sesuai untuk mula kenal simpanan emas secara perlahan.",
+      " Boleh semak detail produk, berat dan seller dulu sebelum buat keputusan.",
+      " Ini bukan janji untung, cuma pilihan untuk orang yang suka simpan aset fizikal.",
+    ],
+  },
+  generic: {
+    main: [
+      " Kadang benda kecil yang dekat dengan rutin harian boleh bagi rasa lega.",
+      " Bila hidup tengah padat, perubahan kecil pun terasa besar pada emosi.",
+      " Yang kita cari sebenarnya cuma cara mudah untuk rasa hari lebih ringan.",
+    ],
+    reply1: [
+      " Mula-mula nampak remeh, tapi bila digunakan hari-hari, baru rasa bezanya.",
+      " Tak perlu tunggu semua sempurna baru mula ubah satu bahagian kecil.",
+      " Yang penting, benda tu praktikal dan kena dengan masalah harian sendiri.",
+    ],
+    reply2: [
+      " Kalau rasa sesuai dengan rutin sendiri, boleh survey detail produk dulu.",
+      " Semak saiz, fungsi dan kegunaan supaya beli ikut keperluan sebenar.",
+      " Boleh mula dari satu barang yang paling dekat dengan masalah harian.",
+    ],
+  },
+};
+
+function compactThreadText(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function singleLineThreadText(value) {
+  return compactThreadText(value).replace(/\s+/g, " ").trim();
+}
+
+function cleanThreadCopyForTarget(value) {
+  return singleLineThreadText(value)
+    .replace(/\btakde\b/gi, "tak ada")
+    .replace(/\btak tau\b/gi, "tak tahu")
+    .replace(/\baku tau\b/gi, "aku tahu")
+    .replace(/\bjek\b/gi, "je")
+    .replace(/\bready\b(?!-to-eat)/gi, "sedia")
+    .replace(/\bsolution\b/gi, "jalan")
+    .replace(/\btry\b/gi, "cuba")
+    .replace(/\bdecide\b/gi, "buat keputusan")
+    .replace(/\bstart\b/gi, "mula")
+    .replace(/\bthen\b/gi, "lepas tu")
+    .replace(/([.!?])(?=[A-ZÀ-ÖØ-Þ])/g, "$1 ")
+    .replace(/\bKalau nak cuba,\s+(?=[A-Z])/gi, "")
+    .replace(/\bKalau nak,\s+(?=[A-Z])/gi, "")
+    .replace(/\bKalau nak\.\s*/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function trimThreadCopyAtWord(text, maxLength = threadPostTargetMaxChars) {
+  const clean = cleanThreadCopyForTarget(text);
+  if (clean.length <= maxLength) return clean;
+  let cut = clean.slice(0, maxLength).trim();
+  const lastSpace = cut.lastIndexOf(" ");
+  if (lastSpace > Math.max(40, Math.floor(maxLength * 0.72))) cut = cut.slice(0, lastSpace).trim();
+  return cut.replace(/[,.!?;:]+$/g, ".").replace(/\s+\./g, ".");
+}
+
+function rotateLengthBank(items, seed) {
+  const values = Array.isArray(items) ? items : [];
+  if (!values.length) return [];
+  const offset = Math.abs(seed) % values.length;
+  return values.slice(offset).concat(values.slice(0, offset));
+}
+
+function appendSentence(base, sentence) {
+  const cleanBase = String(base || "")
+    .trim()
+    .replace(/[,;]\s*$/g, ".");
+  const cleanSentence = String(sentence || "").trim();
+  if (!cleanSentence) return cleanBase;
+  if (!cleanBase) return cleanSentence;
+  const separator = /[.!?:…]$|[\u{1F300}-\u{1FAFF}]$/u.test(cleanBase) ? " " : ". ";
+  return `${cleanBase}${separator}${cleanSentence}`;
+}
+
+function appendCopyToTarget(text, kind, part, seed, maxLength = threadPostTargetMaxChars) {
+  let output = cleanThreadCopyForTarget(text);
+  if (output.length > threadPostTargetMaxChars) output = trimThreadCopyAtWord(output, maxLength);
+  const bank = lengthPolishBanks[kind] || lengthPolishBanks.generic;
+  const candidates = [
+    ...rotateLengthBank(bank[part], seed),
+    ...rotateLengthBank(lengthPolishBanks.generic[part], seed + 1),
+    ...rotateLengthBank(lengthPolishShortFillers, seed + 2),
+  ];
+  let guard = 0;
+  while (output.length < threadPostTargetMinChars && guard < 8) {
+    let added = false;
+    for (const candidate of candidates) {
+      const sentence = String(candidate || "").trim();
+      if (!sentence || output.includes(sentence)) continue;
+      const next = appendSentence(output, sentence);
+      if (next.length <= maxLength) {
+        output = next;
+        added = true;
+        break;
+      }
+    }
+    if (!added && maxLength < threadPostMaxChars) return appendCopyToTarget(output, kind, part, seed + 2, threadPostMaxChars);
+    if (!added) break;
+    guard += 1;
+  }
+  if (output.length > threadPostTargetMaxChars) output = trimThreadCopyAtWord(output, threadPostTargetMaxChars);
+  return output;
+}
+
+function getPostAffiliateLink(post, scheduleData) {
+  const fromPost = String(post.affiliateLink || "").trim();
+  if (fromPost) return fromPost;
+  const fromSchedule = String(scheduleData?.affiliate_link || "").trim();
+  if (fromSchedule) return fromSchedule;
+  const found = String(post.reply2 || "").match(/https?:\/\/\S+/i);
+  return found ? found[0] : "";
+}
+
+function normalizeReply2ToTarget(post, scheduleData, kind, seed) {
+  const link = getPostAffiliateLink(post, scheduleData);
+  let body = String(post.reply2 || "").replace(link, "");
+  body = cleanThreadCopyForTarget(body)
+    .replace(/\s*(kalau\s+nak\s+)?(tengok|survey|lihat|klik|cuba)\s*(sini|pilihan|dulu|juga|malam\s*ni|malam\s*ini)?\s*[:,]?\s*$/i, "")
+    .replace(/\s*(boleh\s*)?(tengok|survey|lihat)\s*(sini|pilihan)?\s*[:,]?\s*$/i, "")
+    .replace(/\s*Kalau[^.?!]{0,110},\s*boleh\.?$/i, "")
+    .replace(/\s*Kalau\s+nak\s*,?\s*boleh\.?$/i, "")
+    .replace(/\s*Kalau\s+nak\s*[,.]?\s*$/i, "")
+    .replace(/Kalau nak cuba juga,\s*Boleh/gi, "Kalau nak cuba juga, boleh")
+    .replace(/Kalau nak\s+Boleh/gi, "Kalau nak, boleh")
+    .replace(/Jangan lupa link:\s*/gi, "")
+    .replace(/Link dekat sini:\s*/gi, "")
+    .replace(/Link:\s*/gi, "")
+    .trim();
+  const separator = link ? "\n" : "";
+  const totalLength = () => body.length + separator.length + link.length;
+  const maxBodyTarget = threadPostTargetMaxChars - separator.length - link.length;
+  const maxBodyHard = threadPostMaxChars - separator.length - link.length;
+  if (body.length > maxBodyTarget) body = trimThreadCopyAtWord(body, Math.max(40, maxBodyTarget));
+
+  const bank = lengthPolishBanks[kind] || lengthPolishBanks.generic;
+  const candidates = [
+    ...rotateLengthBank(bank.reply2, seed),
+    ...rotateLengthBank(lengthPolishBanks.generic.reply2, seed + 1),
+    ...rotateLengthBank(lengthPolishShortFillers, seed + 2),
+  ];
+  let guard = 0;
+  while (totalLength() < threadPostTargetMinChars && guard < 8) {
+    let added = false;
+    for (const candidate of candidates) {
+      const sentence = String(candidate || "").trim();
+      if (!sentence || body.includes(sentence)) continue;
+      const next = appendSentence(body, sentence);
+      if (next.length <= maxBodyTarget) {
+        body = next;
+        added = true;
+        break;
+      }
+    }
+    if (!added) {
+      for (const candidate of candidates) {
+        const sentence = String(candidate || "").trim();
+        if (!sentence || body.includes(sentence)) continue;
+        const next = appendSentence(body, sentence);
+        if (next.length <= maxBodyHard) {
+          body = next;
+          added = true;
+          break;
+        }
+      }
+    }
+    if (!added) break;
+    guard += 1;
+  }
+
+  if (totalLength() > threadPostTargetMaxChars) body = trimThreadCopyAtWord(body, Math.max(40, maxBodyTarget));
+  return link ? `${body}\n${link}` : body;
+}
+
+function applyThreadLengthTarget(post, number, scheduleData, reason = "Auto Audit length target") {
+  if (!post) return false;
+  const before = [post.main, post.reply1, post.reply2].map((value) => String(value || ""));
+  const kind = inferLengthPolishKind(post);
+  post.main = appendCopyToTarget(post.main, kind, "main", number);
+  post.reply1 = appendCopyToTarget(post.reply1, kind, "reply1", number + 1);
+  post.reply2 = normalizeReply2ToTarget(post, scheduleData, kind, number + 2);
+  const affiliateLink = getPostAffiliateLink(post, scheduleData);
+  if (affiliateLink && !post.affiliateLink) post.affiliateLink = affiliateLink;
+
+  const lengths = [post.main, post.reply1, post.reply2].map((value) => String(value || "").length);
+  const targetOk = lengths.every((length) => length >= threadPostTargetMinChars && length <= threadPostTargetMaxChars);
+  const maxOk = lengths.every((length) => length <= threadPostMaxChars);
+  const checks = Array.isArray(post.qualityChecks) ? post.qualityChecks : [];
+  const setCheck = (key, label, passed) => {
+    let check = checks.find((item) => item.key === key);
+    if (!check) {
+      check = { key, label, passed: Boolean(passed) };
+      checks.push(check);
+    }
+    check.label = label;
+    check.passed = Boolean(passed);
+  };
+  setCheck("length", `Setiap post <=${threadPostMaxChars} aksara`, maxOk);
+  setCheck("target_length", `Manfaatkan ruang ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`, targetOk);
+  post.qualityChecks = checks;
+  post.threadLengthTarget = {
+    min: threadPostTargetMinChars,
+    max: threadPostTargetMaxChars,
+    hardMax: threadPostMaxChars,
+    passed: targetOk,
+    lengths,
+  };
+  post.lengthAdjustedAt = `${malaysiaNow()} GMT+8`;
+  post.lengthAdjustmentReason = reason;
+  return before.some((value, index) => value !== [post.main, post.reply1, post.reply2][index]);
+}
+
+function syncLengthAdjustedPostToRuns(runs, post, number) {
+  for (const run of runs) {
+    let runTouched = false;
+    for (const version of run.versions || []) {
+      if (Number(version.scheduleNumber) !== number) continue;
+      version.mainLength = String(post.main || "").length;
+      version.reply1Length = String(post.reply1 || "").length;
+      version.reply2Length = String(post.reply2 || "").length;
+      version.qualityStatus = post.qualityStatus || version.qualityStatus;
+      version.qualityScore = post.qualityScore || version.qualityScore;
+      version.qualityChecks = post.qualityChecks || version.qualityChecks;
+      version.qualityReasons = post.qualityReasons || version.qualityReasons || [];
+      version.lengthAdjustedAt = post.lengthAdjustedAt;
+      version.lengthAdjustmentReason = post.lengthAdjustmentReason;
+      version.updatedAt = `${malaysiaNow()} GMT+8`;
+      runTouched = true;
+    }
+    if (runTouched) run.lengthAdjustedAt = `${malaysiaNow()} GMT+8`;
+  }
+}
+
 function buildPublisherPreflightLocal(number, post, scheduleData, statusData) {
   const productTitle = String(post.productTitle || "").trim();
   const productCategory = String(post.productCategory || "").trim() || inferProductCategoryFromText(
@@ -2704,6 +3072,7 @@ function productAuditSummary(scheduleData, runs) {
   const unverifiedProduct = [];
   const reviewItems = [];
   const overLimit = [];
+  const targetLengthIssues = [];
   const generated = [];
 
   posts.forEach((post, index) => {
@@ -2722,7 +3091,11 @@ function productAuditSummary(scheduleData, runs) {
     }
     if (post.qualityStatus === "review" && String(post.productTitle || "").trim()) reviewItems.push(number);
     for (const key of ["main", "reply1", "reply2"]) {
-      if (String(post[key] || "").length > 300) overLimit.push({ number, key, length: String(post[key] || "").length });
+      const length = String(post[key] || "").length;
+      if (length > threadPostMaxChars) overLimit.push({ number, key, length });
+      if (length < threadPostTargetMinChars || length > threadPostTargetMaxChars) {
+        targetLengthIssues.push({ number, key, length });
+      }
     }
   });
 
@@ -2749,6 +3122,7 @@ function productAuditSummary(scheduleData, runs) {
     ...unverifiedProduct,
     ...reviewItems,
     ...overLimit.map((item) => item.number),
+    ...targetLengthIssues.map((item) => item.number),
   ]);
 
   return {
@@ -2764,6 +3138,8 @@ function productAuditSummary(scheduleData, runs) {
     reviewCount: reviewItems.length + runReviewItems.length,
     overLimit,
     overLimitCount: overLimit.length,
+    targetLengthIssues,
+    targetLengthIssueCount: targetLengthIssues.length,
     runReviewItems,
   };
 }
@@ -2794,6 +3170,8 @@ async function getProductAudit() {
           ? "Produk auto confidence rendah"
         : post.qualityStatus === "review"
           ? "Perlu Semak Quality Gate"
+          : summary.targetLengthIssues.some((issue) => issue.number === number)
+            ? "Belum capai 250-295 aksara"
           : "Had aksara / metadata",
       main: post.main || "",
       reply1: post.reply1 || "",
@@ -2886,6 +3264,7 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
       unverifiedProductCount: audit.unverifiedProductCount,
       reviewCount: audit.reviewCount,
       overLimitCount: audit.overLimitCount,
+      targetLengthIssueCount: audit.targetLengthIssueCount,
       lastAutoAuditAt: scheduleData.lastAutoProductAuditAt || "",
       mode: regenerateReady ? "autopilot guard aktif" : autoGuarded ? "autopilot memantau" : "automasi stabil",
       objective: "ThreadsMe automatik sahkan produk dengan DeepSeek/Product Intel, tapis risiko senyap, dan hanya buka edit bila Akmal mahu override.",
@@ -2994,6 +3373,7 @@ async function runAutoProductAudit() {
   const statusData = await readJsonFile(statusFile, {});
   const runs = await readStoryRuns();
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const lengthAdjustedNumbers = [];
   let touched = 0;
   let protectedCount = 0;
   let passedCount = 0;
@@ -3004,6 +3384,15 @@ async function runAutoProductAudit() {
   let lowConfidenceCount = 0;
   const resolveCache = new Map();
   const autoRegenerateNumbers = [];
+
+  posts.forEach((post, index) => {
+    const number = index + 1;
+    const changed = applyThreadLengthTarget(post, number, scheduleData, "Auto Audit: semua siri disasarkan 250-295 aksara.");
+    if (changed) {
+      lengthAdjustedNumbers.push(number);
+      touched += 1;
+    }
+  });
 
   for (const [index, post] of posts.entries()) {
     if (post.source !== "generated") continue;
@@ -3119,12 +3508,28 @@ async function runAutoProductAudit() {
     reviewCount = Math.max(0, reviewCount - regenerated.updatedNumbers.length);
   }
 
+  for (const number of lengthAdjustedNumbers) {
+    const post = posts[number - 1];
+    if (!post) continue;
+    const productTitle = String(post.productTitle || "").trim();
+    const productCategory = String(post.productCategory || "").trim();
+    const affiliateLink = getPostAffiliateLink(post, scheduleData);
+    if (productTitle && post.source !== "generated") {
+      const quality = auditStoryQuality(post, { productTitle, productCategory, affiliateLink }, affiliateLink);
+      post.qualityStatus = quality.status;
+      post.qualityScore = quality.score;
+      post.qualityChecks = quality.checks;
+      post.qualityReasons = quality.reasons;
+    }
+    syncLengthAdjustedPostToRuns(runs, post, number);
+  }
+
   scheduleData.posts = posts;
   scheduleData.lastAutoProductAuditAt = `${malaysiaNow()} GMT+8`;
   scheduleData.lastAutoProductAuditNote =
-    `${touched} siri dikemas kini. ${autoFilledCount} auto isi produk, ${linkVerifiedCount} link-verified, ${protectedCount} siri diguard automatik, ${regenerated.updatedNumbers.length} auto-regenerate.`;
+    `${touched} siri dikemas kini. ${lengthAdjustedNumbers.length} capai target 250-295 aksara, ${autoFilledCount} auto isi produk, ${linkVerifiedCount} link-verified, ${protectedCount} siri diguard automatik, ${regenerated.updatedNumbers.length} auto-regenerate.`;
   await writeJsonFile(scheduleFile, scheduleData);
-  if (regenerated.updatedNumbers.length) await writeStoryRuns(runs);
+  if (regenerated.updatedNumbers.length || lengthAdjustedNumbers.length) await writeStoryRuns(runs);
 
   const automation = buildAutomatedStatus(scheduleData, statusData, Date.now());
   await writeJsonFile(statusFile, {
@@ -3144,6 +3549,8 @@ async function runAutoProductAudit() {
     autoFilledCount,
     linkVerifiedCount,
     lowConfidenceCount,
+    lengthAdjustedCount: lengthAdjustedNumbers.length,
+    lengthAdjustedNumbers,
     autoRegeneratedCount: regenerated.updatedNumbers.length,
     autoRegeneratedNumbers: regenerated.updatedNumbers,
     autoRegenerateFallbackCount: regenerated.fallbackCount,

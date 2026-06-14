@@ -22,6 +22,7 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Siri selebihnya kekal `Blocked` atau `Remaining` sehingga slot kosong.
 - Auto sync server berjalan setiap `60 saat`.
 - Auto Audit boleh auto-regenerate sehingga `25` siri review dalam satu batch melalui `THREADSME_AUTO_REGENERATE_LIMIT`.
+- Auto Audit mesti auto-normalize semua siri kepada `250-295 aksara` setiap bahagian sebelum Quality Gate dan Publisher Preflight.
 - AI server berjalan di `http://127.0.0.1:8788`.
 - Model AI semasa ialah `deepseek-v4-flash`.
 - Publisher Preflight mesti aktif sebelum posting live. Strategi: Quality Gate tempatan, Product Intel, kemudian DeepSeek final QA.
@@ -57,6 +58,7 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
   - `[REPLY 2]`
 - Setiap bahagian maksimum `300 aksara`.
 - Sasaran panjang baharu untuk story Threads ialah `250-295 aksara` setiap bahagian, bukan 250 perkataan. Tujuannya supaya setiap post terasa lebih penuh, deep storytelling, dan sedap dibaca tanpa melepasi limit Threads.
+- Jika mana-mana post bawah 250 aksara atau atas 295 aksara, Auto Audit perlu panjangkan/trim secara automatik dan simpan `threadLengthTarget`.
 - `Reply 2` mesti berakhir dengan link affiliate yang tepat.
 - Gaya copywriting: santai, personal, deep storytelling, Bahasa Melayu Malaysia, sesuai dengan netizen Malaysia di Threads.
 - Elakkan claim berlebihan, ayat terlalu iklan, typo keterlaluan, dan manfaat yang tidak berkaitan dengan produk sebenar.
