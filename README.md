@@ -14,6 +14,16 @@ Nama rasmi sistem:
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
 | Localhost rasmi | `http://localhost/smta/` |
 
+## Fail Ingatan dan Operasi
+
+Fail berikut menjadi rujukan utama bila kerja SMTA disambung semula:
+
+| Fail | Tujuan |
+| --- | --- |
+| `SYSTEM_MEMORY.md` | Ingatan sistem: tetapan rasmi, peraturan story, status queue, prinsip design, dan larangan penting. |
+| `docs/OPERATION_RUNBOOK.md` | Cara menjalankan, menyemak, deploy, dan memulihkan SMTA. |
+| `docs/IMPROVEMENT_BACKLOG.md` | Senarai cadangan tambah baik yang sudah dikenal pasti dan boleh dibuat selepas ini. |
+
 ## Fungsi Utama
 
 - Jana siri 3 post Threads: `[POST UTAMA]`, `[REPLY 1]`, `[REPLY 2]`.
@@ -134,12 +144,16 @@ smta/
 |   |-- flexi-marble-sheet.png
 |   |-- smta-favicon.svg
 |   `-- smta-logo.svg
+|-- docs/
+|   |-- IMPROVEMENT_BACKLOG.md
+|   `-- OPERATION_RUNBOOK.md
 |-- scripts/
 |   `-- deploy-xampp.ps1
 |-- ai-server.mjs
 |-- app.js
 |-- index.html
 |-- server.mjs
+|-- SYSTEM_MEMORY.md
 |-- status.json
 |-- story-runs.json
 |-- styles.css
