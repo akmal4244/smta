@@ -27,7 +27,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 ## Fungsi Utama
 
 - Jana siri 3 post Threads: `[POST UTAMA]`, `[REPLY 1]`, `[REPLY 2]`.
-- Storytelling deep storyline untuk netizen Malaysia, dengan sasaran 220-295 aksara bagi setiap post supaya limit 300 aksara dimanfaatkan.
+- Storytelling deep storyline untuk netizen Malaysia, dengan sasaran 250-295 aksara bagi setiap post supaya limit 300 aksara dimanfaatkan.
 - Input produk melalui tajuk produk wajib, kategori/kegunaan produk, gambar upload, paste gambar, link gambar, nota produk, dan link affiliate.
 - Pilihan posting sehari termasuk `25 posting / hari`.
 - Auto cipta story dan terus masukkan ke jadual ThreadsMe.
@@ -38,7 +38,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Pusat `Tindakan Saya` memaparkan ringkasan autopilot; input Akmal hanya optional melalui butang edit/override.
 - Product Audit untuk baiki siri lama yang tiada tajuk produk atau story tidak relevan.
 - Product Audit memaparkan ayat semasa `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` untuk semakan sebelum regenerate.
-- Quality Gate sebelum story masuk jadual: relevansi produk, hook, BM Malaysia, claim, CTA, had 300 aksara, dan signal sasaran 220-295 aksara.
+- Quality Gate sebelum story masuk jadual: relevansi produk, hook, BM Malaysia, claim, CTA, had 300 aksara, dan signal sasaran 250-295 aksara.
 - Product Intelligence untuk cuba ekstrak tajuk/kategori daripada link Shopee, affiliate, gambar, nota, dan DeepSeek.
 - Auto Audit boleh auto isi dan auto sahkan metadata produk daripada link affiliate Shopee, gambar, nota, dan DeepSeek jika confidence cukup.
 - Product Intel cache runtime supaya link affiliate yang sama tidak perlu disemak berulang selepas restart.
