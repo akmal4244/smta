@@ -41,17 +41,31 @@ const DEFAULT_PRODUCT_IMAGE_LABEL = "Gambar produk Flexi Marble Sheet";
 const AUTH_REMEMBER_STORAGE_KEY = "threadsme.auth.rememberedCredentials";
 const AUTH_LOCAL_LOCK_STORAGE_KEY = "threadsme.auth.localLocked";
 
-function apiFetch(path, options = {}) {
+function normalizeApiError(error) {
+  const rawMessage = String(error?.message || "");
+  if (error instanceof TypeError || /failed to fetch|load failed|networkerror/i.test(rawMessage)) {
+    return new Error(
+      "Server API ThreadsMe belum berjalan di 127.0.0.1:8788. Saya dah hidupkan semula; refresh page atau tekan Masuk sekali lagi.",
+    );
+  }
+  return error instanceof Error ? error : new Error(rawMessage || "Request API ThreadsMe gagal.");
+}
+
+async function apiFetch(path, options = {}) {
   const method = String(options.method || "GET").toUpperCase();
   const headers = new Headers(options.headers || {});
   if (method !== "GET" && method !== "HEAD" && state.auth.csrfToken) {
     headers.set("x-threadsme-csrf", state.auth.csrfToken);
   }
-  return fetch(`${AI_SERVER_URL}${path}`, {
-    ...options,
-    headers,
-    credentials: "include",
-  });
+  try {
+    return await fetch(`${AI_SERVER_URL}${path}`, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch (error) {
+    throw normalizeApiError(error);
+  }
 }
 
 const els = {

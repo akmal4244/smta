@@ -24,6 +24,7 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Auto Audit boleh auto-regenerate sehingga `25` siri review dalam satu batch melalui `THREADSME_AUTO_REGENERATE_LIMIT`.
 - Auto Audit mesti auto-normalize semua siri kepada `250-295 aksara` setiap bahagian sebelum Quality Gate dan Publisher Preflight.
 - AI server berjalan di `http://127.0.0.1:8788`.
+- AI server local dihidupkan semula melalui `scripts/start-ai-hidden.ps1`; PC ini juga ada shortcut Startup `ThreadsMe AI Server.lnk` untuk auto-start bila Windows login.
 - Model AI semasa ialah `deepseek-v4-flash`.
 - Publisher Preflight mesti aktif sebelum posting live. Strategi: Quality Gate tempatan, Product Intel, kemudian DeepSeek final QA.
 - Minimum score Publisher Preflight DeepSeek ialah `82` secara default melalui `THREADSME_PUBLISH_PREFLIGHT_MIN_SCORE`.
