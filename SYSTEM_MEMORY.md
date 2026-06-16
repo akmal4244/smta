@@ -29,8 +29,8 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Publisher Preflight mesti aktif sebelum posting live. Strategi: Quality Gate tempatan, Product Intel, kemudian DeepSeek final QA.
 - Minimum score Publisher Preflight DeepSeek ialah `82` secara default melalui `THREADSME_PUBLISH_PREFLIGHT_MIN_SCORE`.
 - Publisher Threads default mesti kekal `Dry-run` sehingga token dan User ID disahkan.
-- Status `Pending` ialah queue automation ThreadsMe. Ia bukan bukti post sudah scheduled/live dalam akaun Threads selagi Publisher belum `liveReady`.
-- Status `Lulus` tidak boleh diberi hanya kerana masa slot sudah lepas; ia mesti ada bukti publish live Threads API, manual proof, atau publish result yang sah.
+- Status `Pending` ialah queue automation ThreadsMe. Ia perlu dibandingkan dengan Threads native schedule jika posting dibuat melalui UI Threads/Chrome, bukan API.
+- Status `Lulus` mesti ada bukti: publish live Threads API, manual proof, atau `native_schedule_assumed` apabila Akmal sahkan scheduled posts dalam Threads berkurang dan masa slot sudah lepas.
 - Token dan API key tidak boleh di-commit ke repo.
 - Cookie Shopee jika digunakan mesti disimpan sebagai env `SHOPEE_COOKIE` atau `work/private/shopee-cookie.txt`, tidak boleh di-commit.
 - Runtime JSON aktif berada dalam `work/runtime/` dan tidak di-commit.
@@ -71,7 +71,7 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 | Status UI | Makna Sistem |
 | --- | --- |
 | `Pending` | Siri sudah masuk queue aktif dan menunggu slot publish. |
-| `Lulus` | Siri ada bukti publish live ke Threads atau ditanda published secara sah. |
+| `Lulus` | Siri ada bukti publish live ke Threads, manual proof, atau `native_schedule_assumed` daripada jadual Threads native. |
 | `Blocked` | Siri belum gagal; ia cuma menunggu slot queue kosong. |
 | `Gagal` | Siri gagal diproses atau ditanda gagal. |
 | `Disediakan` | Siri disimpan tetapi belum aktif dalam queue. |

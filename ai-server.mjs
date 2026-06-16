@@ -1000,7 +1000,8 @@ function buildScheduleSlots(existingPosts, count, postsPerDay) {
 
 function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), options = {}) {
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
-  const autoCompletePastSlots = options.autoCompletePastSlots !== false;
+  const nativeScheduleMode = Boolean(options.nativeScheduleMode || statusData.nativeScheduleMode);
+  const autoCompletePastSlots = nativeScheduleMode || options.autoCompletePastSlots !== false;
   const publisher = options.publisher || statusData.publisher || {};
   const previousScheduled = uniqueSortedNumbers(statusData.scheduled);
   const previousPosted = uniqueSortedNumbers(statusData.posted);
@@ -1014,12 +1015,12 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
   const preparedSet = new Set(previousPrepared);
   const remainingSet = new Set(previousRemaining);
   const publishResults =
-    statusData.publishResults && typeof statusData.publishResults === "object" ? statusData.publishResults : {};
+    statusData.publishResults && typeof statusData.publishResults === "object" ? { ...statusData.publishResults } : {};
   const unverifiedPosted = [];
 
   for (const number of [...postedSet]) {
     const proof = publishResults[number] || publishResults[String(number)] || {};
-    if (proof.status === "published" || proof.status === "manual_published") continue;
+    if (["published", "manual_published", "native_schedule_assumed"].includes(proof.status)) continue;
     postedSet.delete(number);
     remainingSet.add(number);
     unverifiedPosted.push(number);
@@ -1032,6 +1033,30 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
     remainingSet.delete(number);
     preparedSet.add(number);
   });
+
+  const postedNow = [];
+  if (autoCompletePastSlots) {
+    posts.forEach((post, index) => {
+      const number = index + 1;
+      if (!post || failedSet.has(number) || post.qualityStatus === "review") return;
+      const time = parseScheduleSlot(post.slot).getTime();
+      if (!Number.isFinite(time) || time > nowMs) return;
+      if (!postedSet.has(number)) postedNow.push(number);
+      postedSet.add(number);
+      scheduledSet.delete(number);
+      remainingSet.delete(number);
+      preparedSet.delete(number);
+      if (nativeScheduleMode && !publishResults[number] && !publishResults[String(number)]) {
+        publishResults[number] = {
+          status: "native_schedule_assumed",
+          source: "Threads native schedule",
+          slot: post.slot,
+          publishedAt: `${malaysiaNow()} GMT+8`,
+          note: "Ditanda Lulus kerana slot schedule sudah lepas dan Akmal sahkan scheduled posts dalam Threads berkurang.",
+        };
+      }
+    });
+  }
 
   const knownNumbers = new Set([
     ...scheduledSet,
@@ -1054,7 +1079,6 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
     else remainingSet.add(number);
   });
 
-  const postedNow = [];
   if (autoCompletePastSlots) {
     for (const number of previousScheduled) {
       const post = posts[number - 1];
@@ -1109,7 +1133,13 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
 
   let systemStatus = "Automasi aktif";
   let systemNote = "ThreadsMe sedang pantau jadual Threads dan status queue secara automatik.";
-  if (!publisher.liveReady) {
+  if (nativeScheduleMode && postedNow.length) {
+    systemStatus = "Tally Threads native - auto Lulus";
+    systemNote = `${formatNumberRange(postedNow)} ditanda Lulus ikut masa slot Threads native. ${scheduled.length} masih Pending, ${blockedCount} masih Blocked.`;
+  } else if (nativeScheduleMode) {
+    systemStatus = "Tally Threads native aktif";
+    systemNote = `${posted.length} siri Lulus ikut jadual native Threads. ${scheduled.length} masih Pending, ${blockedCount} masih Blocked.`;
+  } else if (!publisher.liveReady) {
     systemStatus = "Publisher belum live - queue lokal";
     systemNote = `${scheduled.length} siri Pending masih queue lokal ThreadsMe. Tiada post akan masuk akaun Threads sehingga User ID/token lengkap dan dry-run dimatikan. ${blockedCount} siri disimpan sebagai Blocked.`;
   } else if (promoted.length) {
@@ -1157,6 +1187,8 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
       failed,
       prepared,
       remaining,
+      publishResults,
+      nativeScheduleMode,
       automationMode: true,
       automationLimit: threadsScheduleLimit,
       publisher,

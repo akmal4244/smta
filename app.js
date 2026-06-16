@@ -655,7 +655,7 @@ function statusDetail(status) {
     issue: "Aksara melebihi had Threads.",
     review: "Quality Gate tahan siri ini kerana relevansi produk, CTA atau format perlu disemak.",
     failed: "Posting ditanda gagal dan perlu semakan manual.",
-    passed: "ThreadsMe ada bukti siri ini sudah dipublish ke Threads atau ditanda published secara sah.",
+    passed: "ThreadsMe ada bukti siri ini sudah dipublish melalui API/manual proof atau native schedule sudah lepas masa.",
     pending: "Masih dalam queue automasi. Jika Publisher belum live, status ini belum bermaksud scheduled dalam akaun Threads.",
     blocked: "Menunggu slot automasi. Bila scheduled slot kosong, ThreadsMe akan tukar siri ini kepada Pending secara automatik.",
     prepared: "Draf sudah ready. ThreadsMe akan naikkan ke Pending apabila slot automasi kosong.",
