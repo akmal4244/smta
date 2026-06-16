@@ -297,10 +297,13 @@ ThreadsMe kini mengambil inspirasi daripada Kumo UI tanpa menukar stack vanilla:
 
 ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jadual bertindih. Baki siri akan kekal `Blocked` sehingga slot kosong. Status hanya patut dianggap `Pending` selepas ThreadsMe berjaya memasukkan siri ke queue automation.
 
+`Pending` ialah queue lokal ThreadsMe, bukan bukti post sudah scheduled dalam akaun Threads. Post hanya masuk Threads sebenar apabila Publisher `liveReady`: `enabled=true`, `dryRun=false`, `threadsUserId` diisi, dan access token sah. Status `Lulus` hanya sah selepas publish live berjaya atau ada bukti publish yang disimpan dalam `publishResults`.
+
 ## Version Log
 
 ### v0.9.9
 
+- Betulkan status queue supaya slot lama tidak lagi auto `Lulus` hanya kerana masa sudah lepas; ini elak dashboard kelihatan sudah post sedangkan Publisher masih dry-run.
 - Tambah auto length normalizer dalam Auto Audit untuk semua siri, termasuk legacy dan generated.
 - Semua `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` disasarkan 250-295 aksara secara automatik.
 - Product Audit/Automation Health kini boleh mengesan `targetLengthIssueCount` jika ada siri bawah target.

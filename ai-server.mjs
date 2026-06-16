@@ -1013,6 +1013,17 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
   const failedSet = new Set(previousFailed);
   const preparedSet = new Set(previousPrepared);
   const remainingSet = new Set(previousRemaining);
+  const publishResults =
+    statusData.publishResults && typeof statusData.publishResults === "object" ? statusData.publishResults : {};
+  const unverifiedPosted = [];
+
+  for (const number of [...postedSet]) {
+    const proof = publishResults[number] || publishResults[String(number)] || {};
+    if (proof.status === "published" || proof.status === "manual_published") continue;
+    postedSet.delete(number);
+    remainingSet.add(number);
+    unverifiedPosted.push(number);
+  }
 
   posts.forEach((post, index) => {
     if (post?.qualityStatus !== "review") return;
@@ -1060,7 +1071,8 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
     const post = posts[number - 1];
     if (!post || postedSet.has(number) || failedSet.has(number)) return false;
     if (post.qualityStatus === "review") return false;
-    return parseScheduleSlot(post.slot).getTime() > nowMs;
+    const slotTime = parseScheduleSlot(post.slot).getTime();
+    return !autoCompletePastSlots || slotTime > nowMs;
   });
 
   const openSlots = Math.max(0, threadsScheduleLimit - activeScheduled.length);
@@ -1093,17 +1105,19 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
     (number) => !scheduledSet.has(number) && !postedSet.has(number) && !failedSet.has(number),
   );
 
-  const futureActiveCount = uniqueSortedNumbers([...scheduledSet]).filter((number) => {
-    const post = posts[number - 1];
-    return post && post.qualityStatus !== "review" && !postedSet.has(number) && !failedSet.has(number) && parseScheduleSlot(post.slot).getTime() > nowMs;
-  }).length;
   const blockedCount = remaining.length + prepared.length;
 
   let systemStatus = "Automasi aktif";
   let systemNote = "ThreadsMe sedang pantau jadual Threads dan status queue secara automatik.";
-  if (promoted.length) {
+  if (!publisher.liveReady) {
+    systemStatus = "Publisher belum live - queue lokal";
+    systemNote = `${scheduled.length} siri Pending masih queue lokal ThreadsMe. Tiada post akan masuk akaun Threads sehingga User ID/token lengkap dan dry-run dimatikan. ${blockedCount} siri disimpan sebagai Blocked.`;
+  } else if (promoted.length) {
     systemStatus = "Automasi aktif - auto Pending";
     systemNote = `${formatNumberRange(promoted)} ditukar automatik daripada Blocked kepada Pending kerana slot jadual sudah kosong.`;
+  } else if (unverifiedPosted.length) {
+    systemStatus = "Publisher belum live - status dipulihkan";
+    systemNote = `${formatNumberRange(unverifiedPosted)} dikeluarkan daripada Lulus kerana tiada bukti publish live ke Threads. Lengkapkan User ID/token dan matikan dry-run sebelum publish sebenar.`;
   } else if (postedNow.length) {
     systemStatus = "Automasi aktif - auto Lulus";
     systemNote = `${formatNumberRange(postedNow)} ditanda Lulus kerana masa posting sudah lepas.`;
@@ -1152,8 +1166,9 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
       changed: automationChanged,
       promoted,
       postedNow,
+      unverifiedPosted,
       openSlots,
-      activeScheduled: futureActiveCount,
+      activeScheduled: activeScheduled.length,
       blockedCount,
       nextBlocked,
       nextPending,
@@ -1472,7 +1487,7 @@ async function runThreadsMeAutomation() {
   const tokenReady = await hasThreadsToken(threadsConfig);
   const publisherConfig = sanitizeThreadsConfig(threadsConfig, tokenReady);
   const result = buildAutomatedStatus(scheduleData, statusData, Date.now(), {
-    autoCompletePastSlots: !publisherConfig.liveReady,
+    autoCompletePastSlots: false,
     publisher: publisherConfig,
   });
   result.autoAudit = {

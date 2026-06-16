@@ -631,10 +631,7 @@ function getStatus(post, index) {
   if (hasIssue) return "issue";
   if (state.failed.includes(number)) return "failed";
   if (state.posted.includes(number)) return "passed";
-  if (state.scheduled.includes(number)) {
-    if (state.publisher.config?.liveReady) return "pending";
-    return parseSlot(post.slot).getTime() <= Date.now() ? "passed" : "pending";
-  }
+  if (state.scheduled.includes(number)) return "pending";
   if (state.prepared.includes(number)) return "prepared";
   if (state.remaining.includes(number)) return "blocked";
   return "blocked";
@@ -658,8 +655,8 @@ function statusDetail(status) {
     issue: "Aksara melebihi had Threads.",
     review: "Quality Gate tahan siri ini kerana relevansi produk, CTA atau format perlu disemak.",
     failed: "Posting ditanda gagal dan perlu semakan manual.",
-    passed: "Slot posting sudah lepas atau thread ditanda sudah posted.",
-    pending: "Sudah masuk queue automasi dan sedang menunggu masa posting.",
+    passed: "ThreadsMe ada bukti siri ini sudah dipublish ke Threads atau ditanda published secara sah.",
+    pending: "Masih dalam queue automasi. Jika Publisher belum live, status ini belum bermaksud scheduled dalam akaun Threads.",
     blocked: "Menunggu slot automasi. Bila scheduled slot kosong, ThreadsMe akan tukar siri ini kepada Pending secara automatik.",
     prepared: "Draf sudah ready. ThreadsMe akan naikkan ke Pending apabila slot automasi kosong.",
   }[status];
