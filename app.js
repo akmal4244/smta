@@ -118,6 +118,18 @@ async function apiFetch(path, options = {}) {
   }
 }
 
+async function readOptionalJson(path, fallback = {}) {
+  const response = await fetch(path, { cache: "no-store" }).catch(() => null);
+  if (!response || !response.ok) return fallback;
+  const contentType = response.headers.get("content-type") || "";
+  if (!/json/i.test(contentType)) return fallback;
+  try {
+    return await response.json();
+  } catch {
+    return fallback;
+  }
+}
+
 function cleanToastText(value, fallback = "") {
   return String(value || fallback).replace(/\s+/g, " ").trim();
 }
@@ -719,9 +731,11 @@ async function loadScheduleData() {
     applyStatusData(payload.status || {});
     state.automationOnline = true;
   } catch {
-    const response = await fetch("./threads_flexi_marble_schedule.json", { cache: "no-store" });
-    if (!response.ok) throw new Error("Schedule file failed to load");
-    data = await response.json();
+    data = await readOptionalJson("./threads_flexi_marble_schedule.json", {
+      posts: [],
+      timezone: state.timezone,
+      affiliate_link: state.affiliateLink,
+    });
   }
   state.posts = Array.isArray(data.posts) ? data.posts : [];
   state.timezone = data.timezone || state.timezone;
@@ -736,8 +750,7 @@ async function refreshSystemData({ includeStories = true } = {}) {
   await loadScheduleData();
   const synced = await syncAutomationStatus();
   if (!synced) {
-    const statusResponse = await fetch("./status.json", { cache: "no-store" }).catch(() => null);
-    const statusData = statusResponse && statusResponse.ok ? await statusResponse.json() : {};
+    const statusData = await readOptionalJson("./status.json", {});
     applyStatusData(statusData);
   }
   if (includeStories) await loadStoryRuns();
