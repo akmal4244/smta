@@ -11,11 +11,23 @@
   };
   const textOf = (element) => String(element?.innerText || element?.textContent || element?.getAttribute?.("aria-label") || "").trim();
   const allText = () => document.body.innerText.replace(/\s+/g, " ").trim();
+  const THREADSME_PART_LIMIT = 300;
+
+  function normalizeComposerText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
 
   function accountLabel() {
     const meta = document.querySelector('meta[property="og:title"], meta[name="title"]')?.content || "";
-    const profileLink = Array.from(document.querySelectorAll('a[href^="/@"], a[href*="/@"]')).map((item) => item.href).find(Boolean);
-    return meta || profileLink || "Threads login Chrome";
+    const profileLink = Array.from(document.querySelectorAll('a[href^="/@"], a[href*="/@"]'))
+      .filter(visible)
+      .map((item) => item.href)
+      .find(Boolean);
+    if (profileLink) return profileLink;
+    if (meta && !/\b(log in|sign in|masuk)\b/i.test(meta)) return meta;
+    const title = document.title || "";
+    if (title && !/\b(log in|sign in|masuk)\b/i.test(title)) return title;
+    return "Threads session Chrome aktif";
   }
 
   function detectLoginState() {
@@ -46,11 +58,87 @@
     return true;
   }
 
-  function setTextboxValue(textbox, value) {
+  function textboxValue(textbox) {
+    if (!textbox) return "";
+    if ("value" in textbox) return normalizeComposerText(textbox.value);
+    return normalizeComposerText(textbox.innerText || textbox.textContent || "");
+  }
+
+  function dispatchTextboxInput(textbox, inputType = "insertText", data = null) {
+    let inputEvent;
+    try {
+      inputEvent = new InputEvent("input", { bubbles: true, inputType, data });
+    } catch {
+      inputEvent = new Event("input", { bubbles: true });
+    }
+    textbox.dispatchEvent(inputEvent);
+    textbox.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  function clearTextboxValue(textbox) {
     textbox.focus();
-    document.execCommand("selectAll", false, null);
-    document.execCommand("insertText", false, value);
-    textbox.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+    if ("value" in textbox) {
+      textbox.value = "";
+      dispatchTextboxInput(textbox, "deleteContentBackward", null);
+      return;
+    }
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(textbox);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.execCommand("delete", false, null);
+    textbox.textContent = "";
+    textbox.innerHTML = "";
+    dispatchTextboxInput(textbox, "deleteContentBackward", null);
+    selection.removeAllRanges();
+  }
+
+  function replaceContenteditableText(textbox, value) {
+    textbox.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(textbox);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.execCommand("delete", false, null);
+    const inserted = document.execCommand("insertText", false, value);
+    if (!inserted || textboxValue(textbox) !== normalizeComposerText(value)) {
+      textbox.replaceChildren(document.createTextNode(value));
+    }
+    selection.removeAllRanges();
+    dispatchTextboxInput(textbox, "insertText", null);
+  }
+
+  function insertTextboxValue(textbox, value) {
+    textbox.focus();
+    if ("value" in textbox) {
+      textbox.value = value;
+      dispatchTextboxInput(textbox, "insertText", value);
+      return;
+    }
+
+    replaceContenteditableText(textbox, value);
+  }
+
+  async function setTextboxValue(textbox, value) {
+    const clean = normalizeComposerText(value);
+    if (clean.length > THREADSME_PART_LIMIT) {
+      throw new Error(`Teks ThreadsMe melebihi ${THREADSME_PART_LIMIT} aksara (${clean.length}). Extension tahan supaya composer Threads tidak jadi negatif.`);
+    }
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      clearTextboxValue(textbox);
+      await sleep(120);
+      insertTextboxValue(textbox, clean);
+      await sleep(180);
+      if (textboxValue(textbox) === clean) return;
+    }
+
+    const actual = textboxValue(textbox);
+    clearTextboxValue(textbox);
+    throw new Error(`Composer Threads tidak dapat dikosongkan dengan bersih. Expected ${clean.length} aksara, actual ${actual.length}. Tutup draf lama dan cuba semula.`);
   }
 
   function getTextboxes() {
@@ -79,15 +167,43 @@
   async function fillThread(post, delayMs) {
     const parts = [post.main, post.reply1, post.reply2].map((part) => String(part || "").trim()).filter(Boolean);
     if (parts.length !== 3) throw new Error("Payload ThreadsMe mesti ada POST UTAMA, REPLY 1 dan REPLY 2.");
+    const overLimit = parts.find((part) => normalizeComposerText(part).length > THREADSME_PART_LIMIT);
+    if (overLimit) {
+      throw new Error(`Satu bahagian thread melebihi ${THREADSME_PART_LIMIT} aksara. Extension tahan sebelum isi composer.`);
+    }
+
     const first = await ensureComposer();
-    setTextboxValue(first, parts[0]);
+    const existingBoxes = getTextboxes();
+    if (existingBoxes.length > 3) {
+      existingBoxes.forEach(clearTextboxValue);
+      throw new Error("Composer Threads ada draf/box berlebihan. Extension sudah kosongkan draf untuk elak duplicate. Cuba schedule semula.");
+    }
+    await setTextboxValue(first, parts[0]);
     await sleep(delayMs);
-    const second = await addReplyBox();
-    setTextboxValue(second, parts[1]);
+    let boxes = getTextboxes();
+    while (boxes.length < 2) {
+      await addReplyBox();
+      boxes = getTextboxes();
+    }
+    await setTextboxValue(boxes[1], parts[1]);
     await sleep(delayMs);
-    const third = await addReplyBox();
-    setTextboxValue(third, parts[2]);
+    boxes = getTextboxes();
+    while (boxes.length < 3) {
+      await addReplyBox();
+      boxes = getTextboxes();
+    }
+    await setTextboxValue(boxes[2], parts[2]);
     await sleep(Math.max(2200, delayMs));
+
+    boxes = getTextboxes();
+    const filled = boxes.slice(0, 3).map(textboxValue);
+    const expected = parts.map(normalizeComposerText);
+    const mismatch = filled.find((value, index) => value !== expected[index]);
+    const extraFilled = boxes.slice(3).map(textboxValue).filter(Boolean);
+    if (mismatch || extraFilled.length) {
+      boxes.forEach(clearTextboxValue);
+      throw new Error("Composer Threads nampak tidak selari selepas isi. Extension kosongkan draf untuk elak duplicate/over-limit.");
+    }
   }
 
   function validatePreview(post) {
@@ -133,9 +249,31 @@
     await sleep(delayMs);
   }
 
-  async function submitSchedule(delayMs) {
+  function composerStillContains(parts) {
+    const needles = parts
+      .map((part) => normalizeComposerText(part).slice(0, 80))
+      .filter((part) => part.length >= 24);
+    if (!needles.length) return false;
+    return getTextboxes().some((box) => {
+      const value = textboxValue(box);
+      return needles.some((needle) => value.includes(needle));
+    });
+  }
+
+  async function waitForScheduleConfirmation(parts, delayMs) {
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await sleep(Math.max(900, Math.min(delayMs, 2200)));
+      const bodyText = allText();
+      const stillDraft = composerStillContains(parts);
+      const hasPositiveSignal = /\b(scheduled|posting|dijadual|jadual)\b/i.test(bodyText);
+      if (!stillDraft && (hasPositiveSignal || getTextboxes().length < 3)) return true;
+    }
+    throw new Error("Threads belum beri confirmation schedule. Extension tahan proof supaya status ThreadsMe tidak palsu.");
+  }
+
+  async function submitSchedule(delayMs, parts) {
     clickByText([/^schedule$/i, /^jadualkan$/i, /schedule thread/i], { required: true });
-    await sleep(Math.max(2500, delayMs));
+    await waitForScheduleConfirmation(parts, delayMs);
   }
 
   function scanScheduledDrafts() {
@@ -149,31 +287,48 @@
       .filter((value) => /Posting|Scheduled|Dijadual/i.test(value))
       .slice(0, 80);
     const count = postingMatches.length || Math.min(rows.length, Math.max(0, scheduledKeywordCount));
+    const scanReliable = Boolean(count || rows.length || /\b(Scheduled posts|Scheduled|Posting|Dijadual|Draf)\b/i.test(text));
     return {
       account: accountLabel(),
       threadsConnected: login.connected,
       loginPromptDetected: login.loginPromptDetected,
       nativeScheduledCount: count,
       scheduledItems: rows.map((value) => ({ text: value.slice(0, 900) })),
+      scanReliable,
+      scanNote: scanReliable
+        ? "Scheduled signal dikesan pada halaman semasa."
+        : "Halaman semasa tidak menunjukkan senarai scheduled; kiraan scan mungkin tidak lengkap.",
       scannedAt: new Date().toISOString(),
       url: location.href,
     };
   }
 
   async function schedulePost(payload) {
+    if (window.__THREADSME_SCHEDULE_BUSY__) {
+      throw new Error("Schedule ThreadsMe sedang berjalan. Tunggu proses semasa selesai untuk elak teks duplicate.");
+    }
+    window.__THREADSME_SCHEDULE_BUSY__ = true;
     const post = payload.post || {};
     const delayMs = Math.max(700, Math.min(Number(payload.delayMs || 1800), 8000));
-    await fillThread(post, delayMs);
-    validatePreview(post);
-    await openScheduler(post.slot, delayMs);
-    validatePreview(post);
-    await submitSchedule(delayMs);
-    const scan = scanScheduledDrafts();
-    return {
-      account: scan.account,
-      nativeScheduledCount: scan.nativeScheduledCount,
-      proofText: `${post.number} | ${post.slot} | ${post.main}`.slice(0, 500),
-    };
+    try {
+      await fillThread(post, delayMs);
+      validatePreview(post);
+      await openScheduler(post.slot, delayMs);
+      validatePreview(post);
+      await submitSchedule(delayMs, parts);
+      const scan = scanScheduledDrafts();
+      return {
+        account: scan.account,
+        nativeScheduledCount: scan.nativeScheduledCount,
+        scanReliable: scan.scanReliable,
+        proofText: `${post.number} | ${post.slot} | ${post.main}`.slice(0, 500),
+      };
+    } catch (error) {
+      getTextboxes().forEach(clearTextboxValue);
+      throw error;
+    } finally {
+      window.__THREADSME_SCHEDULE_BUSY__ = false;
+    }
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

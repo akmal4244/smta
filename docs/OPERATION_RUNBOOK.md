@@ -76,12 +76,17 @@ Jangan commit cookie Shopee. Jika `hasShopeeCookie:false`, ThreadsMe masih akan 
 
 Default local:
 
-- `THREADSME_AUTH_REQUIRED=false`.
-- Dashboard dan API automation jalan terus tanpa login kerana sistem ini digunakan oleh Akmal seorang di PC sendiri.
+- `THREADSME_AUTH_REQUIRED=true`.
+- Dashboard, extension pairing, dan API automation perlukan sesi admin supaya token/API tidak terbuka tanpa sengaja.
+
+Jika mahu mod tanpa login untuk PC sendiri sahaja:
+
+- Set `THREADSME_AUTH_REQUIRED=false` secara sengaja.
+- Jangan expose AI server ke network/public dalam mod ini.
 
 Jika mahu public deploy:
 
-- Set `THREADSME_AUTH_REQUIRED=true`.
+- Kekalkan `THREADSME_AUTH_REQUIRED=true`.
 - Login pertama melalui GUI akan setup username/password admin dan simpan hash di `work/private/admin-auth.json`.
 - Alternatif: set `THREADSME_ADMIN_PASSWORD` melalui env/server config.
 - `Ingat saya` menyimpan username/password di browser localStorage hanya bila ditick; untick akan padam storage dan kosongkan field selepas logout.
@@ -142,9 +147,9 @@ Jika produk masih tidak dapat dikenal pasti dengan yakin, sistem akan guard gene
 - Auto Audit cuba auto isi metadata produk daripada link affiliate Shopee dan DeepSeek tanpa meminta tindakan manual.
 - Auto Audit anggap produk sah jika `link_verified`, `manual_verified`, atau `story_inferred` dengan confidence cukup.
 - Guna menu `Tindakan Saya` untuk lihat ringkasan autopilot dan akses edit pilihan, bukan semua log automation.
-- Siri yang tidak cukup relevan akan ditahan sebagai `Perlu Semak`.
-- Sebelum kekal `Perlu Semak`, ThreadsMe cuba auto-regenerate sehingga had `THREADSME_AUTO_REGENERATE_LIMIT` supaya Akmal tidak perlu buat tindakan manual.
-- `Perlu Semak` tidak patut masuk Pending atau publisher live.
+- Siri yang tidak cukup relevan akan ditahan sebagai `Auto Guard`.
+- Sebelum kekal `Auto Guard`, ThreadsMe cuba auto-regenerate sehingga had `THREADSME_AUTO_REGENERATE_LIMIT` supaya Akmal tidak perlu buat tindakan manual.
+- `Auto Guard` tidak patut masuk Pending atau publisher live.
 - Guna menu `Audit Produk` untuk pilih batch seperti `26-35` jika mahu override, kemudian klik `Simpan metadata` atau `Regenerate story`.
 - Bila pilih satu siri, semak panel `Ayat semasa untuk semakan` dahulu. Panel ini memaparkan `[POST UTAMA]`, `[REPLY 1]`, dan `[REPLY 2]` bersama kiraan aksara supaya copywriting lama boleh dinilai sebelum regenerate.
 - Selepas story dibaiki, automation sync seterusnya akan kira semula slot Pending.
@@ -231,7 +236,7 @@ Log disanitasi supaya token, cookie, password, API key dan Bearer token tidak di
 
 - `Pending`: queue aktif.
 - `Blocked`: belum gagal, menunggu slot kosong.
-- `Perlu Semak`: story ditahan Quality Gate dan perlu audit produk.
+- `Auto Guard`: story ditahan Quality Gate dan dibaiki semula oleh audit produk automatik.
 - `Lulus`: posted/passed.
 - `Gagal`: gagal diproses atau ditanda gagal.
 

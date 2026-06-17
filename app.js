@@ -21,7 +21,7 @@ const state = {
   autoAudit: { summary: null, actions: [] },
   productAudit: { summary: null, items: [] },
   productIntel: null,
-  auth: { authRequired: false, authenticated: false, setupRequired: false, csrfToken: "", hasPassword: false, localLocked: false },
+  auth: { authRequired: false, authenticated: false, setupRequired: false, csrfToken: "", sessionToken: "", hasPassword: false, localLocked: false },
   appStarted: false,
   aiHealth: { ok: false, hasKey: false, model: "" },
   publisher: {
@@ -44,6 +44,7 @@ const DEFAULT_PRODUCT_IMAGE = "./assets/flexi-marble-sheet.webp";
 const DEFAULT_PRODUCT_IMAGE_LABEL = "Gambar produk Flexi Marble Sheet";
 const AUTH_REMEMBER_STORAGE_KEY = "threadsme.auth.rememberedCredentials";
 const AUTH_LOCAL_LOCK_STORAGE_KEY = "threadsme.auth.localLocked";
+const AUTH_SESSION_STORAGE_KEY = "threadsme.auth.sessionToken";
 
 function normalizeApiError(error) {
   const rawMessage = String(error?.message || "");
@@ -55,9 +56,52 @@ function normalizeApiError(error) {
   return error instanceof Error ? error : new Error(rawMessage || "Request API ThreadsMe gagal.");
 }
 
+function describePublisherTokenInput(token) {
+  const clean = String(token || "").trim();
+  if (!clean) return { hasInput: false, warning: "" };
+  if (/^[a-f0-9]{32}$/i.test(clean)) {
+    return {
+      hasInput: true,
+      warning: "Token ini nampak seperti token pendek/pairing, bukan access token Threads Graph API. Tetapan boleh disimpan, tetapi live publish belum boleh dianggap ready.",
+    };
+  }
+  if (clean.length < 50) {
+    return {
+      hasInput: true,
+      warning: "Token ini terlalu pendek untuk access token Threads Graph API biasa. Tetapan boleh disimpan, tetapi semak semula token live.",
+    };
+  }
+  return { hasInput: true, warning: "" };
+}
+
+function readStoredSessionToken() {
+  try {
+    return window.sessionStorage.getItem(AUTH_SESSION_STORAGE_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStoredSessionToken(token) {
+  try {
+    const clean = String(token || "").trim();
+    if (clean) {
+      window.sessionStorage.setItem(AUTH_SESSION_STORAGE_KEY, clean);
+    } else {
+      window.sessionStorage.removeItem(AUTH_SESSION_STORAGE_KEY);
+    }
+  } catch {
+    // Session storage is a convenience fallback for localhost/127.0.0.1 auth.
+  }
+}
+
 async function apiFetch(path, options = {}) {
   const method = String(options.method || "GET").toUpperCase();
   const headers = new Headers(options.headers || {});
+  const sessionToken = state.auth.sessionToken || readStoredSessionToken();
+  if (sessionToken && !headers.has("authorization")) {
+    headers.set("authorization", `Bearer ${sessionToken}`);
+  }
   if (method !== "GET" && method !== "HEAD" && state.auth.csrfToken) {
     headers.set("x-threadsme-csrf", state.auth.csrfToken);
   }
@@ -72,7 +116,105 @@ async function apiFetch(path, options = {}) {
   }
 }
 
+function cleanToastText(value, fallback = "") {
+  return String(value || fallback).replace(/\s+/g, " ").trim();
+}
+
+function showToast(title, message = "", type = "info", options = {}) {
+  const stack = els.toastStack || document.querySelector("#toastStack");
+  if (!stack) return;
+  const toast = document.createElement("article");
+  toast.className = `toast-card ${type}`;
+  toast.setAttribute("role", type === "error" ? "alert" : "status");
+
+  const marker = document.createElement("span");
+  marker.className = "toast-marker";
+  marker.setAttribute("aria-hidden", "true");
+
+  const copy = document.createElement("div");
+  const heading = document.createElement("strong");
+  heading.textContent = cleanToastText(title, "Notifikasi");
+  copy.append(heading);
+  const detail = cleanToastText(message);
+  if (detail) {
+    const paragraph = document.createElement("p");
+    paragraph.textContent = detail;
+    copy.append(paragraph);
+  }
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "toast-close";
+  close.setAttribute("aria-label", "Tutup notifikasi");
+  close.textContent = "x";
+
+  const removeToast = () => {
+    toast.classList.add("is-leaving");
+    window.setTimeout(() => toast.remove(), 180);
+  };
+  close.addEventListener("click", removeToast);
+  toast.append(marker, copy, close);
+  stack.prepend(toast);
+
+  while (stack.children.length > 5) {
+    stack.lastElementChild?.remove();
+  }
+
+  const duration = Number(options.duration || (type === "error" ? 5600 : 3200));
+  window.setTimeout(removeToast, duration);
+}
+
+function showErrorToast(error, title = "Tindakan gagal") {
+  const message = error instanceof Error ? error.message : String(error || "Ralat tidak diketahui.");
+  showToast(title, message, "error", { duration: 6200 });
+}
+
+function readableButtonLabel(button) {
+  return cleanToastText(
+    button.dataset.toast
+      || button.getAttribute("aria-label")
+      || button.labels?.[0]?.textContent
+      || button.selectedOptions?.[0]?.textContent
+      || button.getAttribute("placeholder")
+      || button.textContent,
+    "Butang ditekan",
+  ).slice(0, 90);
+}
+
+function getToastActionTarget(target) {
+  const element = target?.closest?.(
+    "button, a[href], [role='button'], input[type='checkbox'], input[type='radio'], select, summary",
+  );
+  if (element) return element;
+  const label = target?.closest?.("label");
+  const control = label?.control;
+  if (control?.matches?.("input[type='checkbox'], input[type='radio'], select")) return control;
+  return null;
+}
+
+let buttonToastBound = false;
+function bindButtonClickToasts() {
+  if (buttonToastBound) return;
+  buttonToastBound = true;
+  document.addEventListener(
+    "click",
+    (event) => {
+      const action = getToastActionTarget(event.target);
+      if (!action || action.closest(".toast-card")) return;
+      if (action.disabled || action.getAttribute("aria-busy") === "true") return;
+      const title = action.matches("a[href]")
+        ? "Pautan diterima"
+        : action.matches("input, select")
+          ? "Pilihan diterima"
+          : "Tindakan diterima";
+      showToast(title, readableButtonLabel(action), "info", { duration: 1800 });
+    },
+    true,
+  );
+}
+
 const els = {
+  toastStack: document.querySelector("#toastStack"),
   authGate: document.querySelector("#authGate"),
   authTitle: document.querySelector("#authTitle"),
   authHelp: document.querySelector("#authHelp"),
@@ -185,7 +327,9 @@ const els = {
   extensionNativeCountText: document.querySelector("#extensionNativeCountText"),
   extensionBridgeUrl: document.querySelector("#extensionBridgeUrl"),
   extensionTokenPreview: document.querySelector("#extensionTokenPreview"),
+  extensionTokenFull: document.querySelector("#extensionTokenFull"),
   extensionHelpText: document.querySelector("#extensionHelpText"),
+  downloadExtensionButton: document.querySelector("#downloadExtensionButton"),
   loadExtensionPairingButton: document.querySelector("#loadExtensionPairingButton"),
   copyExtensionTokenButton: document.querySelector("#copyExtensionTokenButton"),
   threadsUserId: document.querySelector("#threadsUserId"),
@@ -384,6 +528,7 @@ function renderAuthGate() {
 }
 
 async function refreshAuthStatus() {
+  if (!state.auth.sessionToken) state.auth.sessionToken = readStoredSessionToken();
   const response = await apiFetch("/api/auth/status", { cache: "no-store" });
   const data = await response.json();
   if (!response.ok || !data.ok) throw new Error(data.error || "Auth status gagal");
@@ -395,9 +540,15 @@ async function refreshAuthStatus() {
     authenticated: localLocked ? false : Boolean(data.authenticated),
     setupRequired: localLocked ? !hasPassword : Boolean(data.setupRequired),
     csrfToken: data.csrfToken || "",
+    sessionToken: data.sessionToken || state.auth.sessionToken || "",
     hasPassword,
     localLocked,
   };
+  if (state.auth.authenticated && state.auth.sessionToken) {
+    writeStoredSessionToken(state.auth.sessionToken);
+  } else if (authRequired) {
+    writeStoredSessionToken("");
+  }
   renderAuthGate();
   return state.auth;
 }
@@ -409,6 +560,7 @@ async function submitAuth() {
   const remember = Boolean(els.adminRememberMe?.checked);
   if (!password) {
     if (els.authStatus) els.authStatus.textContent = "Masukkan kata laluan admin.";
+    showToast("Login belum lengkap", "Masukkan kata laluan admin dahulu.", "warn");
     return;
   }
   els.authSubmitButton.disabled = true;
@@ -427,9 +579,11 @@ async function submitAuth() {
       authenticated: Boolean(data.authenticated),
       setupRequired: Boolean(data.setupRequired),
       csrfToken: data.csrfToken || "",
+      sessionToken: data.sessionToken || "",
       hasPassword: Boolean(data.hasPassword),
       localLocked: false,
     };
+    writeStoredSessionToken(state.auth.sessionToken);
     setLocalAuthLocked(false);
     if (remember) {
       saveRememberedAuth(username, password);
@@ -438,10 +592,12 @@ async function submitAuth() {
       clearAuthCredentialFields();
     }
     if (els.authStatus) els.authStatus.textContent = remember ? "Akses disahkan. Login disimpan." : "Akses disahkan.";
+    showToast("Login berjaya", remember ? "Akses disahkan dan login diingat." : "Akses disahkan.", "success");
     renderAuthGate();
     await startApplicationData();
   } catch (error) {
     if (els.authStatus) els.authStatus.textContent = error.message;
+    showErrorToast(error, "Login gagal");
   } finally {
     els.authSubmitButton.disabled = false;
   }
@@ -453,6 +609,7 @@ function closeLogoutConfirm() {
 }
 
 function requestLogoutConfirmation() {
+  showToast("Pengesahan diperlukan", "Popup log keluar dibuka untuk semakan Akmal.", "warn");
   if (!els.logoutConfirmModal) {
     performLogout();
     return;
@@ -486,13 +643,16 @@ async function performLogout() {
     authenticated: !useLocalLock,
     setupRequired: useLocalLock ? false : !state.auth.hasPassword,
     csrfToken: "",
+    sessionToken: "",
     localLocked: useLocalLock,
   };
+  writeStoredSessionToken("");
   if (useLocalLock) {
     state.appStarted = false;
   }
   renderAuthGate();
   hydrateRememberedAuthFields();
+  showToast(useLocalLock ? "Skrin dikunci" : "Log keluar berjaya", "Sesi dashboard ditamatkan dengan selamat.", "success");
 }
 
 function bindAuthGate() {
@@ -654,7 +814,7 @@ function getStatus(post, index) {
 function statusLabel(status) {
   return {
     issue: "Ada isu",
-    review: "Perlu Semak",
+    review: "Auto Guard",
     failed: "Gagal",
     passed: "Lulus",
     pending: "Pending",
@@ -667,7 +827,7 @@ function statusLabel(status) {
 function statusDetail(status) {
   return {
     issue: "Aksara melebihi had Threads.",
-    review: "Quality Gate tahan siri ini kerana relevansi produk, CTA atau format perlu disemak.",
+    review: "Quality Gate tahan siri ini sementara ThreadsMe cuba baiki secara automatik. Edit hanya pilihan.",
     failed: "Posting ditanda gagal dan perlu semakan manual.",
     passed: "ThreadsMe ada bukti siri ini sudah dipublish melalui API/manual proof atau native schedule sudah lepas masa.",
     pending: "Masih dalam queue automasi. Jika Publisher belum live, status ini belum bermaksud scheduled dalam akaun Threads.",
@@ -950,7 +1110,7 @@ function renderNetizenPreview() {
   });
 
   const reviewCount = checks.filter((item) => item.tone !== "passed").length;
-  els.netizenPreviewNote.textContent = reviewCount ? `${reviewCount} perkara perlu semak` : "Nampak natural untuk Threads";
+  els.netizenPreviewNote.textContent = reviewCount ? `${reviewCount} perkara auto guard` : "Nampak natural untuk Threads";
   els.netizenPreviewList.replaceChildren(
     ...checks.map((item) => {
       const card = document.createElement("article");
@@ -1027,7 +1187,7 @@ function renderScheduleCalendar() {
       makeTextElement(
         "small",
         "",
-        `Lulus ${day.counts.passed || 0} | Pending ${day.counts.pending || 0} | Blocked ${(day.counts.blocked || 0) + (day.counts.prepared || 0)} | Semak ${day.counts.review || 0}`,
+        `Lulus ${day.counts.passed || 0} | Pending ${day.counts.pending || 0} | Blocked ${(day.counts.blocked || 0) + (day.counts.prepared || 0)} | Auto Guard ${day.counts.review || 0}`,
       ),
     );
     button.addEventListener("click", () => {
@@ -1049,7 +1209,7 @@ function renderScheduleCalendar() {
     ["Lulus", selectedDay.counts.passed || 0, "passed"],
     ["Pending", selectedDay.counts.pending || 0, "pending"],
     ["Blocked", blockedCount, "blocked"],
-    ["Semak", selectedDay.counts.review || 0, "review"],
+    ["Auto Guard", selectedDay.counts.review || 0, "review"],
     ["Gagal", selectedDay.counts.failed || 0, "failed"],
     ["Isu", selectedDay.counts.issue || 0, "issue"],
   ].map(([label, value, status]) => {
@@ -1284,12 +1444,7 @@ function renderActionList(container, actions, compact = false) {
     return;
   }
   if (!actions.length) {
-    container.replaceChildren(
-      makeEmptyState(
-        "Tiada tindakan penting",
-        "ThreadsMe sedang pantau story, produk, queue dan Quality Gate secara automatik.",
-      ),
-    );
+    renderAutopilotFlow(container, compact);
     return;
   }
 
@@ -1316,14 +1471,112 @@ function renderActionList(container, actions, compact = false) {
   );
 }
 
+function buildAutopilotFlowItems() {
+  const summary = state.autoAudit.summary || {};
+  const health = state.automationHealth || {};
+  const queue = health.queue || {};
+  const publisher = health.publisher || state.publisher.config || {};
+  const preflight = health.publisherPreflight || state.publisher.preflight || {};
+  const extension = health.extension || state.extensionBridge.config || {};
+  const deepseekReady = Boolean(health.deepseek?.hasKey || state.aiHealth.hasKey);
+  const pending = queue.pending ?? state.scheduled.length;
+  const limit = queue.limit || THREADS_SCHEDULE_LIMIT;
+  const nativeCount = extension.lastNativeScheduledCount || 0;
+  const nativeTarget = extension.targetScheduledCount || THREADS_SCHEDULE_LIMIT;
+  const extensionReady = Boolean(extension.lastSyncAt && extension.threadsConnected && nativeCount >= Math.min(nativeTarget, THREADS_SCHEDULE_LIMIT));
+  const publisherReady = Boolean(publisher.liveReady);
+  const preflightDeepSeek = preflight.enabled === false ? false : preflight.aiEnabled !== false;
+
+  return [
+    {
+      step: "01",
+      title: "Product Intel + DeepSeek",
+      detail: deepseekReady
+        ? `${summary.autoFilled || 0} siri sudah auto isi/sahkan produk. DeepSeek digunakan bila link/gambar perlukan inferens.`
+        : "DeepSeek key belum dikesan. ThreadsMe masih guna metadata tempatan, tapi inferens produk akan lebih lemah.",
+      status: deepseekReady ? "passed" : "review",
+      badge: deepseekReady ? "DeepSeek OK" : "Key tiada",
+    },
+    {
+      step: "02",
+      title: "Quality Gate story",
+      detail: `${summary.autoPassed || 0} siri lulus. ${summary.autoGuarded || 0} diguard senyap jika produk/link/ayat tak cukup selamat.`,
+      status: (summary.autoGuarded || 0) ? "pending" : "passed",
+      badge: (summary.autoGuarded || 0) ? "Guard aktif" : "Lulus",
+    },
+    {
+      step: "03",
+      title: "Auto regenerate",
+      detail: (summary.regenerateReady || 0)
+        ? `${summary.regenerateReady} siri dikenal pasti untuk auto-baiki copywriting dengan DeepSeek.`
+        : "Tiada siri kritikal menunggu regenerate. Flow kekal autopilot.",
+      status: (summary.regenerateReady || 0) ? "pending" : "passed",
+      badge: (summary.regenerateReady || 0) ? "Auto baiki" : "Stabil",
+    },
+    {
+      step: "04",
+      title: "Queue 25 Pending",
+      detail: `${pending}/${limit} Pending aktif. Baki Blocked/Prepared akan naik sendiri bila slot kosong.`,
+      status: pending >= limit ? "passed" : "pending",
+      badge: pending >= limit ? "25 aktif" : "Isi slot",
+    },
+    {
+      step: "05",
+      title: "Threads Extension sync",
+      detail: extension.lastSyncAt
+        ? `${nativeCount}/${nativeTarget} scheduled native dikesan. Akaun: ${extension.threadsConnected ? extension.lastAccount || "connected" : "belum login"}.`
+        : "Extension belum sync. Bila extension hidup, ThreadsMe akan tally scheduled sebenar dan isi slot kosong.",
+      status: extensionReady ? "passed" : "pending",
+      badge: extensionReady ? "Online" : "Sync",
+    },
+    {
+      step: "06",
+      title: "Publisher Preflight",
+      detail: preflightDeepSeek
+        ? `Final QA DeepSeek aktif sebelum publish. Mode publisher: ${publisherReady ? "live sedia" : "mod selamat/dry-run"}.`
+        : `Final QA berjalan secara tempatan. Mode publisher: ${publisherReady ? "live sedia" : "mod selamat/dry-run"}.`,
+      status: publisherReady ? "passed" : "pending",
+      badge: publisherReady ? "Live" : preflightDeepSeek ? "DeepSeek QA" : "Local QA",
+    },
+  ];
+}
+
+function renderAutopilotFlow(container, compact = false) {
+  const items = buildAutopilotFlowItems();
+  const visible = compact ? items.slice(0, 3) : items;
+  container.replaceChildren(
+    ...visible.map((item) => {
+      const article = document.createElement("article");
+      article.className = `action-card flow ${item.status}${compact ? " compact" : ""}`;
+      const body = document.createElement("span");
+      body.className = "action-card-body";
+      body.append(
+        makeTextElement("strong", "", item.title),
+        makeTextElement("small", "", item.detail),
+        makeTextElement("em", "", "Automatik - tiada tindakan manual diperlukan kecuali Akmal mahu edit."),
+      );
+      article.append(
+        makeTextElement("span", "action-number", item.step),
+        body,
+        makeStatusBadge(item.status, item.badge),
+      );
+      return article;
+    }),
+  );
+}
+
 function renderAutoAuditGuide(summary) {
   if (!els.autoAuditGuide) return;
+  const health = state.automationHealth || {};
+  const extension = health.extension || state.extensionBridge.config || {};
   const items = [
     ["Objektif", summary.objective || "Pastikan copywriting tepat dan bermanfaat untuk netizen Malaysia."],
     ["Mode", summary.mode || "automasi stabil"],
+    ["DeepSeek API", health.deepseek?.hasKey || state.aiHealth.hasKey ? `Aktif - ${health.deepseek?.model || state.aiHealth.model || "deepseek-v4-flash"}` : "Belum dikesan"],
     ["Auto isi produk", `${summary.autoFilled || 0} siri`],
+    ["Auto regenerate", `${summary.regenerateReady || 0} siri dipantau`],
     ["Auto guard", `${summary.verifyNeeded || summary.unverifiedProductCount || 0} siri confidence rendah`],
-    ["Tajuk kosong", `${summary.missingProductTitleCount || 0} siri`],
+    ["Threads native", extension.lastSyncAt ? `${extension.lastNativeScheduledCount || 0}/${extension.targetScheduledCount || THREADS_SCHEDULE_LIMIT} scheduled` : "Belum sync extension"],
     ["Semak terakhir", summary.lastAutoAuditAt || "Belum ada rekod"],
   ];
   els.autoAuditGuide.replaceChildren(
@@ -1367,7 +1620,7 @@ function renderProductAudit() {
     ["Generated", summary.generatedCount || 0],
     ["Tiada tajuk", summary.missingProductTitleCount || 0],
     ["Confidence rendah", summary.unverifiedProductCount || 0],
-    ["Perlu semak", summary.reviewCount || 0],
+    ["Auto Guard", summary.reviewCount || 0],
   ];
   els.auditMetrics.replaceChildren(
     ...metricItems.map(([label, value]) => {
@@ -1499,7 +1752,7 @@ function generatedStatusLabel(status) {
     passed: "Lulus",
     pending: "Pending",
     blocked: "Blocked",
-    review: "Perlu Semak",
+    review: "Auto Audit",
     failed: "Gagal",
   }[status] || "Pending";
 }
@@ -1553,6 +1806,8 @@ function applyPublisherData(data = {}) {
     dueNumbers: uniqueNumbers(data.dueNumbers),
     preflight: data.preflight || state.publisher.preflight || null,
     lastEntries: Array.isArray(data.lastEntries) ? data.lastEntries : [],
+    saveNotice: state.publisher.saveNotice || "",
+    statusError: "",
   };
 }
 
@@ -1563,12 +1818,15 @@ async function loadPublisherStatus() {
     const data = await response.json();
     if (!response.ok || !data.ok) throw new Error(data.error || "Publisher status failed");
     applyPublisherData(data);
-  } catch {
+  } catch (error) {
+    const previous = state.publisher || {};
     state.publisher = {
-      config: { enabled: false, dryRun: true, hasToken: false, liveReady: false },
+      config: previous.config || { enabled: false, dryRun: true, hasToken: false, liveReady: false },
       dueNumbers: [],
-      preflight: null,
-      lastEntries: [],
+      preflight: previous.preflight || null,
+      lastEntries: previous.lastEntries || [],
+      saveNotice: previous.saveNotice || "",
+      statusError: error.message,
     };
   }
 }
@@ -1623,11 +1881,13 @@ async function downloadRuntimeBackup() {
     link.remove();
     URL.revokeObjectURL(url);
     els.downloadBackupButton.textContent = "Backup selesai";
+    showToast("Backup runtime siap", "Fail backup JSON sudah dimuat turun.", "success");
     window.setTimeout(() => {
       els.downloadBackupButton.textContent = "Backup runtime";
     }, 1600);
   } catch (error) {
     els.downloadBackupButton.textContent = error.message;
+    showErrorToast(error, "Backup gagal");
     window.setTimeout(() => {
       els.downloadBackupButton.textContent = "Backup runtime";
     }, 2200);
@@ -1658,6 +1918,7 @@ function renderPublisher() {
   const selectedStatus = selectedPost ? getStatus(selectedPost, state.selectedIndex) : "-";
   const mode = config.liveReady ? "Live sedia" : config.dryRun ? "Mod selamat" : "Belum lengkap";
   const preflight = state.publisher.preflight || {};
+  const tokenWarning = config.tokenWarning || "";
 
   els.publisherModeBadge.textContent = mode;
   els.publisherModeBadge.className = config.liveReady ? "live" : config.dryRun ? "dry" : "warn";
@@ -1670,13 +1931,24 @@ function renderPublisher() {
     ? `${state.publisher.dueNumbers.length} due: ${state.publisher.dueNumbers.join(", ")}`
     : "0 due";
   els.publisherModeText.textContent = mode;
-  els.publisherTokenText.textContent = config.hasToken ? "Ada" : "Tiada";
+  els.publisherTokenText.textContent = config.hasToken
+    ? tokenWarning
+      ? "Ada, token pendek"
+      : "Ada"
+    : "Tiada";
   els.publisherSelectedText.textContent = selectedPost ? `Siri ${selectedNumber} (${statusLabel(selectedStatus)})` : "-";
-  els.publisherHelpText.textContent = config.liveReady
+  const publisherHelp = state.publisher.statusError
+    ? `${state.publisher.statusError} Tetapan terakhir pada skrin dikekalkan. Jika sesi tamat, login semula dan simpan sekali lagi.`
+    : state.publisher.saveNotice
+      ? state.publisher.saveNotice
+      : tokenWarning
+        ? tokenWarning
+        : config.liveReady
     ? preflight.lastAt
       ? `Live aktif. Preflight terakhir: ${preflight.lastStatus || "semak"} untuk Siri ${preflight.lastNumber || "-"} - ${preflight.lastNote || "DeepSeek final QA aktif."}`
       : "Live aktif. Setiap siri due mesti lulus Publisher Preflight DeepSeek sebelum Threads API dipanggil."
     : "Mod selamat aktif. Tiada post public dihantar sehingga User ID dan token Threads lengkap.";
+  els.publisherHelpText.textContent = publisherHelp;
 
   if (els.dashboardPublisherMode && els.dashboardPublisherNote) {
     els.dashboardPublisherMode.textContent = mode;
@@ -1773,6 +2045,10 @@ function renderExtensionBridge() {
   els.extensionTokenPreview.textContent = state.extensionBridge.token
     ? `${state.extensionBridge.token.slice(0, 6)}...${state.extensionBridge.token.slice(-4)}`
     : extension.tokenPreview || "Klik dapatkan token";
+  if (els.extensionTokenFull) {
+    els.extensionTokenFull.value = state.extensionBridge.token || "";
+    els.extensionTokenFull.hidden = !state.extensionBridge.token;
+  }
   els.extensionHelpText.textContent = extension.lastSyncAt
     ? allOnline
       ? `Sync terakhir ${extension.lastSyncAt}. ThreadsMe API, extension, dan akaun Threads sudah online.`
@@ -2084,6 +2360,7 @@ function bindStoryGenerator() {
         els.storyOutput.value =
           "Autopilot guard: ThreadsMe belum cukup yakin tentang produk daripada link/gambar. Siri tidak dijadualkan supaya story tidak lari daripada produk sebenar. Gunakan Edit hanya kalau Akmal mahu override.";
         setAiStatus("Autopilot guard aktif", "warn");
+        showToast("Story ditahan", "Produk belum cukup yakin. ThreadsMe tidak jadualkan untuk elak story lari.", "warn");
         return;
       }
     }
@@ -2133,8 +2410,10 @@ function bindStoryGenerator() {
       const scheduleCount = data.run?.schedule?.items?.length || 0;
       if (data.fallback) {
         setAiStatus(scheduleCount ? `${scheduleCount} story fallback masuk jadual` : "Fallback tempatan sedia", "warn");
+        showToast("Story fallback siap", scheduleCount ? `${scheduleCount} siri masuk Jadual Threads.` : "Fallback tempatan sedia untuk semakan.", "warn");
       } else {
         setAiStatus(scheduleCount ? `${scheduleCount} story masuk Jadual Threads` : "DeepSeek sedia", "ready");
+        showToast("Story berjaya dijana", scheduleCount ? `${scheduleCount} siri masuk Jadual Threads.` : "Output DeepSeek sudah sedia.", "success");
       }
     } catch (error) {
       const offline = /failed to fetch|networkerror|load failed/i.test(error.message);
@@ -2142,6 +2421,7 @@ function bindStoryGenerator() {
         ? "Gagal generate: Server AI ThreadsMe belum hidup. Sila tunggu sebentar dan cuba semula, atau jalankan npm run ai dalam folder ThreadsMe."
         : `Gagal generate: ${error.message}`;
       setAiStatus(offline ? "Server AI offline" : "Jana gagal", "warn");
+      showErrorToast(error, offline ? "Server AI offline" : "Jana story gagal");
     } finally {
       els.generateStoryButton.disabled = false;
       els.generateStoryButton.removeAttribute("aria-busy");
@@ -2152,6 +2432,7 @@ function bindStoryGenerator() {
   els.copyStoryButton.addEventListener("click", async () => {
     await copyText(els.storyOutput.value);
     els.copyStoryButton.textContent = "Disalin";
+    showToast("Output disalin", "Story Threads sudah masuk clipboard.", "success");
     window.setTimeout(() => {
       els.copyStoryButton.textContent = "Salin output";
     }, 1200);
@@ -2168,11 +2449,19 @@ function bindStoryGenerator() {
     els.productAffiliateLink.value = state.affiliateLink || "https://s.shopee.com.my/7VDqSOoKf3";
     if (els.versionCount) els.versionCount.value = els.postsPerDay.value;
     resetImageState();
+    showToast("Borang dikosongkan", "Input Jana Story sudah reset.", "success");
   });
 }
 
 async function savePublisherConfig() {
   if (!els.savePublisherButton) return;
+  const threadsUserId = els.threadsUserId.value.trim();
+  const accessToken = els.threadsAccessToken.value.trim();
+  const tokenCheck = describePublisherTokenInput(accessToken);
+  if ((accessToken || els.threadsEnabled.checked) && !threadsUserId) {
+    showToast("Tetapan belum lengkap", "Threads User ID wajib diisi dahulu.", "warn");
+    throw new Error("Threads User ID wajib diisi sebelum simpan token atau aktifkan publisher worker.");
+  }
   const liveRequested = els.threadsEnabled.checked && !els.threadsDryRun.checked;
   if (liveRequested) {
     const ok = window.confirm(
@@ -2183,13 +2472,14 @@ async function savePublisherConfig() {
 
   els.savePublisherButton.disabled = true;
   els.savePublisherButton.textContent = "Menyimpan...";
+  if (els.publisherHelpText) els.publisherHelpText.textContent = "Menyimpan tetapan API...";
   try {
     const response = await apiFetch("/api/threads-publisher/config", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        threadsUserId: els.threadsUserId.value.trim(),
-        accessToken: els.threadsAccessToken.value.trim(),
+        threadsUserId,
+        accessToken,
         enabled: els.threadsEnabled.checked,
         dryRun: els.threadsDryRun.checked,
         replyMode: els.replyMode.value,
@@ -2201,8 +2491,31 @@ async function savePublisherConfig() {
     if (!response.ok || !data.ok) throw new Error(data.error || "Gagal simpan publisher");
     applyPublisherData(data);
     if (data.config) state.publisher.config = data.config;
+    const savedConfig = state.publisher.config || {};
+    state.publisher.saveNotice = tokenCheck.warning
+      ? `Tetapan disimpan, tetapi ${tokenCheck.warning}`
+      : savedConfig.hasToken
+        ? "Tetapan API disimpan. Token disimpan secara private dan input dikosongkan untuk keselamatan."
+        : "Tetapan API disimpan. Tiada token baru disimpan.";
     els.threadsAccessToken.value = "";
     await refreshSystemData();
+    state.publisher.saveNotice = state.publisher.statusError || state.publisher.saveNotice
+      ? state.publisher.saveNotice
+      : "Tetapan API disimpan.";
+    renderPublisher();
+    showToast(
+      tokenCheck.warning ? "Tetapan disimpan, token pendek" : "Tetapan API disimpan",
+      tokenCheck.warning || "Konfigurasi publisher dikemas kini.",
+      tokenCheck.warning ? "warn" : "success",
+    );
+  } catch (error) {
+    if (els.publisherHelpText) {
+      els.publisherHelpText.textContent = /sesi admin|unauthorized|csrf|forbidden/i.test(error.message)
+        ? "Sesi admin tamat atau token keselamatan borang tidak sah. Login semula, kemudian simpan sekali lagi."
+        : error.message;
+    }
+    showErrorToast(error, "Simpan API gagal");
+    throw error;
   } finally {
     els.savePublisherButton.disabled = false;
     els.savePublisherButton.textContent = "Simpan tetapan";
@@ -2222,6 +2535,7 @@ async function runPublisherDue() {
     if (!response.ok || !data.ok) throw new Error(data.error || "Run due gagal");
     applyPublisherData(data);
     await refreshSystemData();
+    showToast("Run due selesai", data.publisher?.skippedReason || "Publisher due sudah disemak.", "success");
   } finally {
     els.runPublisherButton.disabled = false;
     els.runPublisherButton.textContent = "Run due sekarang";
@@ -2250,6 +2564,7 @@ async function publishSelectedSeries() {
     applyPublisherData(data);
     if (data.result?.status) applyStatusData(data.result.status);
     await refreshSystemData();
+    showToast("Publish siri selesai", `Siri ${number} sudah diproses oleh publisher.`, "success");
   } finally {
     els.publishSelectedButton.disabled = false;
     els.publishSelectedButton.textContent = "Publish siri dipilih";
@@ -2263,13 +2578,21 @@ async function loadExtensionPairing() {
   try {
     const response = await apiFetch("/api/extension/pairing", { cache: "no-store" });
     const data = await response.json();
+    if (response.status === 401) throw new Error("Sesi admin diperlukan. Login semula di ThreadsMe, kemudian tekan Dapatkan pairing.");
     if (!response.ok || !data.ok) throw new Error(data.error || "Pairing extension gagal");
     state.extensionBridge.config = data.bridge || state.extensionBridge.config;
     state.extensionBridge.token = data.bridge?.token || "";
     renderExtensionBridge();
     if (els.extensionHelpText) {
-      els.extensionHelpText.textContent = "Token pairing sudah sedia. Klik Salin token dan paste dalam popup ThreadsMe Extension di Chrome.";
+      els.extensionHelpText.textContent = "Token pairing sudah sedia. Klik Salin token, atau pilih kotak token penuh dan tekan Ctrl+C jika browser block clipboard.";
     }
+    if (els.extensionTokenFull && state.extensionBridge.token) {
+      els.extensionTokenFull.hidden = false;
+      els.extensionTokenFull.focus();
+      els.extensionTokenFull.select();
+    }
+    showToast("Token pairing sedia", "Token penuh sudah dipaparkan dan dipilih untuk disalin.", "success");
+    return state.extensionBridge.token;
   } finally {
     els.loadExtensionPairingButton.disabled = false;
     els.loadExtensionPairingButton.textContent = "Dapatkan pairing";
@@ -2277,16 +2600,68 @@ async function loadExtensionPairing() {
 }
 
 async function copyExtensionToken() {
+  if (els.copyExtensionTokenButton) {
+    els.copyExtensionTokenButton.disabled = true;
+    els.copyExtensionTokenButton.textContent = "Menyalin...";
+  }
   if (!state.extensionBridge.token) {
     await loadExtensionPairing();
   }
-  if (!state.extensionBridge.token) return;
-  await copyText(state.extensionBridge.token);
-  if (els.copyExtensionTokenButton) {
-    els.copyExtensionTokenButton.textContent = "Token disalin";
-    window.setTimeout(() => {
-      els.copyExtensionTokenButton.textContent = "Salin token";
-    }, 1400);
+  if (!state.extensionBridge.token) throw new Error("Token pairing belum tersedia. Tekan Dapatkan pairing dahulu.");
+  try {
+    await copyText(state.extensionBridge.token);
+    if (els.extensionHelpText) {
+      els.extensionHelpText.textContent = "Token pairing sudah disalin. Paste ke ruang Token Pairing dalam popup extension.";
+    }
+    showToast("Token pairing disalin", "Paste token ini dalam popup ThreadsMe Extension.", "success");
+  } catch {
+    if (els.extensionTokenFull) {
+      els.extensionTokenFull.hidden = false;
+      els.extensionTokenFull.focus();
+      els.extensionTokenFull.select();
+    }
+    if (els.extensionHelpText) {
+      els.extensionHelpText.textContent = "Browser block auto-copy. Kotak token penuh sudah dipilih; tekan Ctrl+C, kemudian paste dalam popup extension.";
+    }
+    showToast("Copy manual diperlukan", "Kotak token penuh sudah dipilih. Tekan Ctrl+C.", "warn");
+  } finally {
+    if (els.copyExtensionTokenButton) {
+      els.copyExtensionTokenButton.disabled = false;
+      els.copyExtensionTokenButton.textContent = "Token sedia";
+      window.setTimeout(() => {
+        els.copyExtensionTokenButton.textContent = "Salin token";
+      }, 1600);
+    }
+  }
+}
+
+async function downloadExtensionPackage() {
+  if (!els.downloadExtensionButton) return;
+  els.downloadExtensionButton.disabled = true;
+  els.downloadExtensionButton.textContent = "Memuat turun...";
+  try {
+    const response = await apiFetch("/api/extension/download/prepare", {
+      method: "POST",
+      cache: "no-store",
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok || !data.download?.url) {
+      throw new Error(data.error || "Link muat turun extension gagal disediakan.");
+    }
+    const downloadUrl = new URL(data.download.url, AI_SERVER_URL).href;
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = data.download.fileName || "threadsme-extension.zip";
+    document.body.append(link);
+    link.click();
+    window.setTimeout(() => link.remove(), 1200);
+    if (els.extensionHelpText) {
+      els.extensionHelpText.textContent = "Extension zip sudah dimuat turun. Extract zip, buka chrome://extensions, aktifkan Developer mode, kemudian Load unpacked folder hasil extract.";
+    }
+    showToast("Extension dimuat turun", "Zip terkini ThreadsMe Extension sudah dihantar ke browser.", "success");
+  } finally {
+    els.downloadExtensionButton.disabled = false;
+    els.downloadExtensionButton.textContent = "Muat turun extension";
   }
 }
 
@@ -2294,27 +2669,39 @@ function bindPublisherControls() {
   if (!els.savePublisherButton) return;
   els.savePublisherButton.addEventListener("click", () => {
     savePublisherConfig().catch((error) => {
-      els.publisherHelpText.textContent = error.message;
+      if (!els.publisherHelpText.textContent || /menyimpan/i.test(els.publisherHelpText.textContent)) {
+        els.publisherHelpText.textContent = error.message;
+      }
     });
   });
   els.runPublisherButton.addEventListener("click", () => {
     runPublisherDue().catch((error) => {
       els.publisherHelpText.textContent = error.message;
+      showErrorToast(error, "Run due gagal");
     });
   });
   els.publishSelectedButton.addEventListener("click", () => {
     publishSelectedSeries().catch((error) => {
       els.publisherHelpText.textContent = error.message;
+      showErrorToast(error, "Publish siri gagal");
+    });
+  });
+  els.downloadExtensionButton?.addEventListener("click", () => {
+    downloadExtensionPackage().catch((error) => {
+      if (els.extensionHelpText) els.extensionHelpText.textContent = error.message;
+      showErrorToast(error, "Muat turun extension gagal");
     });
   });
   els.loadExtensionPairingButton?.addEventListener("click", () => {
     loadExtensionPairing().catch((error) => {
       if (els.extensionHelpText) els.extensionHelpText.textContent = error.message;
+      showErrorToast(error, "Dapatkan pairing gagal");
     });
   });
   els.copyExtensionTokenButton?.addEventListener("click", () => {
     copyExtensionToken().catch((error) => {
       if (els.extensionHelpText) els.extensionHelpText.textContent = error.message;
+      showErrorToast(error, "Salin token gagal");
     });
   });
   els.saveShopeeCookieButton?.addEventListener("click", async () => {
@@ -2324,8 +2711,10 @@ function bindPublisherControls() {
       await saveShopeeCookie(els.shopeeCookieInput.value);
       els.shopeeCookieInput.value = "";
       renderPublisher();
+      showToast("Cookie Shopee disimpan", "Product Intel boleh cuba baca detail produk dengan sesi private.", "success");
     } catch (error) {
       if (els.shopeeCookieStatus) els.shopeeCookieStatus.textContent = error.message;
+      showErrorToast(error, "Simpan cookie gagal");
     } finally {
       els.saveShopeeCookieButton.disabled = false;
       els.saveShopeeCookieButton.textContent = "Simpan cookie";
@@ -2338,8 +2727,10 @@ function bindPublisherControls() {
       await saveShopeeCookie("");
       els.shopeeCookieInput.value = "";
       renderPublisher();
+      showToast("Cookie Shopee dikosongkan", "Product Intel kembali kepada mod tanpa cookie.", "success");
     } catch (error) {
       if (els.shopeeCookieStatus) els.shopeeCookieStatus.textContent = error.message;
+      showErrorToast(error, "Clear cookie gagal");
     } finally {
       els.clearShopeeCookieButton.disabled = false;
       els.clearShopeeCookieButton.textContent = "Clear cookie";
@@ -2368,6 +2759,7 @@ async function saveProductAuditMetadata() {
     state.productAudit = { summary: data.summary || null, items: Array.isArray(data.items) ? data.items : [] };
     els.auditActionStatus.textContent = `${data.updatedNumbers?.length || 0} siri dikemas kini`;
     await refreshSystemData();
+    showToast("Audit produk dikemas kini", `${data.updatedNumbers?.length || 0} siri disimpan.`, "success");
   } finally {
     els.auditSaveMetadataButton.disabled = false;
   }
@@ -2394,6 +2786,7 @@ async function regenerateProductAuditStories() {
     state.productAudit = { summary: data.summary || null, items: Array.isArray(data.items) ? data.items : [] };
     els.auditActionStatus.textContent = `${data.updatedNumbers?.length || 0} siri regenerated`;
     await refreshSystemData();
+    showToast("Story audit dijana semula", `${data.updatedNumbers?.length || 0} siri regenerated.`, "success");
   } finally {
     els.auditRegenerateButton.disabled = false;
   }
@@ -2426,13 +2819,14 @@ async function runAutoAuditNow(sourceButton) {
     applyStatusData(data.status || {});
     await loadAutomationHealth();
     render();
+    showToast("Auto audit selesai", `${data.summary?.autoFilled || data.summary?.autoFilledCount || 0} auto isi, ${data.summary?.regenerate || data.summary?.regenerateCount || 0} perlu regenerate.`, "success");
   } finally {
     buttons.forEach((button) => {
       button.disabled = false;
       button.removeAttribute("aria-busy");
     });
-    if (els.runAutoAuditDashboardButton) els.runAutoAuditDashboardButton.textContent = "Jalankan auto audit";
-    if (els.runAutoAuditPageButton) els.runAutoAuditPageButton.textContent = "Run auto audit sekarang";
+    if (els.runAutoAuditDashboardButton) els.runAutoAuditDashboardButton.textContent = "Semak auto audit sekarang";
+    if (els.runAutoAuditPageButton) els.runAutoAuditPageButton.textContent = "Semak auto audit sekarang";
   }
 }
 
@@ -2441,35 +2835,66 @@ function bindAuditControls() {
   els.auditSaveMetadataButton.addEventListener("click", () => {
     saveProductAuditMetadata().catch((error) => {
       els.auditActionStatus.textContent = error.message;
+      showErrorToast(error, "Simpan audit gagal");
     });
   });
   els.auditRegenerateButton.addEventListener("click", () => {
     regenerateProductAuditStories().catch((error) => {
       els.auditActionStatus.textContent = error.message;
+      showErrorToast(error, "Regenerate gagal");
     });
   });
   els.runAutoAuditDashboardButton?.addEventListener("click", () => {
     runAutoAuditNow(els.runAutoAuditDashboardButton).catch((error) => {
       if (els.actionCenterBadge) els.actionCenterBadge.textContent = error.message;
+      showErrorToast(error, "Auto audit gagal");
     });
   });
   els.runAutoAuditPageButton?.addEventListener("click", () => {
     runAutoAuditNow(els.runAutoAuditPageButton).catch((error) => {
       if (els.actionPageBadge) els.actionPageBadge.textContent = error.message;
+      showErrorToast(error, "Auto audit gagal");
     });
   });
-  els.openActionsButton?.addEventListener("click", () => showView("actions"));
-  els.openAuditFromActionsButton?.addEventListener("click", () => showView("audit"));
+  els.openActionsButton?.addEventListener("click", () => {
+    showView("actions");
+    showToast("Pusat tindakan dibuka", "Semakan autopilot dipaparkan.", "info");
+  });
+  els.openAuditFromActionsButton?.addEventListener("click", () => {
+    showView("audit");
+    showToast("Audit produk dibuka", "Senarai Quality Gate dipaparkan.", "info");
+  });
   els.downloadBackupButton?.addEventListener("click", () => {
     downloadRuntimeBackup();
   });
 }
 
 async function copyText(text) {
-  await navigator.clipboard.writeText(text);
+  const value = String(text || "");
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.inset = "0 auto auto 0";
+    textarea.style.width = "1px";
+    textarea.style.height = "1px";
+    textarea.style.opacity = "0";
+    document.body.append(textarea);
+    textarea.focus();
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    if (!copied) throw new Error("Browser block clipboard. Pilih token penuh dan tekan Ctrl+C.");
+    return true;
+  }
 }
 
 function bindActions() {
+  bindButtonClickToasts();
   bindNavigation();
   els.searchInput.addEventListener("input", renderQueue);
   els.statusFilter.addEventListener("change", renderQueue);
@@ -2480,6 +2905,7 @@ function bindActions() {
   els.copyPromptButton.addEventListener("click", async () => {
     await copyText("Ya, jadualkan");
     els.copyPromptButton.textContent = "Disalin";
+    showToast("Teks confirmation disalin", "Ayat “Ya, jadualkan” sudah masuk clipboard.", "success");
     window.setTimeout(() => {
       els.copyPromptButton.textContent = "Salin teks confirmation";
     }, 1200);
@@ -2488,6 +2914,7 @@ function bindActions() {
   els.copyThreadButton.addEventListener("click", async () => {
     await copyText(threadText(state.posts[state.selectedIndex]));
     els.copyThreadButton.textContent = "Disalin";
+    showToast("Siri disalin", `Siri ${state.selectedIndex + 1} sudah masuk clipboard.`, "success");
     window.setTimeout(() => {
       els.copyThreadButton.textContent = "Salin siri ini";
     }, 1200);
@@ -2496,6 +2923,7 @@ function bindActions() {
   els.copyReply2Button.addEventListener("click", async () => {
     await copyText(state.posts[state.selectedIndex].reply2);
     els.copyReply2Button.textContent = "Disalin";
+    showToast("CTA reply disalin", "Reply CTA affiliate sudah masuk clipboard.", "success");
     window.setTimeout(() => {
       els.copyReply2Button.textContent = "Salin CTA reply";
     }, 1200);
@@ -2532,6 +2960,7 @@ function bindNavigation() {
         history.replaceState(null, "", `#${nextView}`);
       }
       showView(nextView);
+      showToast("Menu dibuka", readableButtonLabel(button), "info", { duration: 1600 });
     });
   });
 
@@ -2693,6 +3122,7 @@ async function boot() {
   if (els.creditYear) els.creditYear.textContent = String(new Date().getFullYear());
   bindActions();
   bindAuthGate();
+  state.auth.sessionToken = readStoredSessionToken();
   try {
     await refreshAuthStatus();
   } catch (error) {
@@ -2701,6 +3131,7 @@ async function boot() {
       authenticated: false,
       setupRequired: false,
       csrfToken: "",
+      sessionToken: "",
       hasPassword: false,
       localLocked: true,
     };

@@ -108,6 +108,11 @@ async function run() {
     const locked = await request("/api/system-data");
     assert(locked.response.status === 401, "Protected GET tanpa login mesti pulang 401.");
 
+    const lockedExtensionDownload = await request("/api/extension/download");
+    assert(lockedExtensionDownload.response.status === 401, "Download extension tanpa login mesti pulang 401.");
+    const lockedExtensionPrepare = await request("/api/extension/download/prepare", { method: "POST" });
+    assert(lockedExtensionPrepare.response.status === 401, "Prepare download extension tanpa login mesti pulang 401.");
+
     const evilCors = await request("/api/health", { headers: { origin: "http://evil.example" } });
     assert(evilCors.response.status === 403, "Origin luar sepatutnya ditolak.");
 
@@ -115,6 +120,11 @@ async function run() {
       headers: { origin: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
     });
     assert(extensionPairingCorsBlocked.response.status === 403, "Pairing token tidak boleh dibaca terus oleh origin extension.");
+    const extensionDownloadPrepareCorsBlocked = await request("/api/extension/download/prepare", {
+      method: "POST",
+      headers: { origin: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    });
+    assert(extensionDownloadPrepareCorsBlocked.response.status === 403, "Extension origin tidak boleh prepare pakej download admin.");
 
     const setup = await request("/api/auth/setup", {
       method: "POST",
@@ -131,6 +141,17 @@ async function run() {
     });
     assert(pairing.response.status === 200 && pairing.json?.bridge?.token, "Pairing extension mesti pulang token untuk sesi admin.");
     const extensionToken = pairing.json.bridge.token;
+
+    const extensionPrepare = await request("/api/extension/download/prepare", {
+      method: "POST",
+      headers: { cookie, "x-threadsme-csrf": csrfToken },
+    });
+    assert(extensionPrepare.response.status === 200 && extensionPrepare.json?.download?.url, "Prepare download extension mesti berjaya selepas login.");
+    const extensionDownload = await fetch(`${baseUrl}${extensionPrepare.json.download.url}`);
+    const extensionBytes = new Uint8Array(await extensionDownload.arrayBuffer());
+    assert(extensionDownload.status === 200, "Download extension token URL mesti berjaya.");
+    assert(extensionDownload.headers.get("content-type")?.includes("application/zip"), "Download extension token URL mesti application/zip.");
+    assert(extensionBytes[0] === 0x50 && extensionBytes[1] === 0x4b, "Download extension mesti bermula dengan signature ZIP.");
 
     const extensionStatusNoToken = await request("/api/extension/status");
     assert(extensionStatusNoToken.response.status === 401, "Extension status tanpa bearer token mesti ditolak.");
@@ -186,6 +207,34 @@ async function run() {
     assert(story.response.status === 200, `Generate story gagal: ${story.text}`);
     assert(story.json?.versions?.length === 2, "Generate story tidak pulang 2 versi.");
     assert(story.json?.run?.schedule?.postsPerDay === 25, "Schedule generated tidak ikut 25 posting/hari.");
+    const firstGeneratedVersion = story.json?.run?.versions?.[0];
+    assert(firstGeneratedVersion?.id && firstGeneratedVersion?.scheduleNumber, "Generated story mesti ada version id dan nombor jadual.");
+
+    const failedStatus = await request("/api/story-runs/status", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie,
+        "x-threadsme-csrf": csrfToken,
+      },
+      body: JSON.stringify({ versionId: firstGeneratedVersion.id, status: "failed" }),
+    });
+    assert(failedStatus.response.status === 200, "Mark siri failed untuk smoke test gagal.");
+    const failedProof = await request("/api/extension/proof", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${extensionToken}`,
+        origin: "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      },
+      body: JSON.stringify({
+        number: firstGeneratedVersion.scheduleNumber,
+        slot: firstGeneratedVersion.slot,
+        account: "QA Threads",
+        proofText: "QA proof should be rejected for failed series.",
+      }),
+    });
+    assert(failedProof.response.status === 400, "Extension proof tidak boleh hidupkan semula siri Gagal.");
 
     const productIntelPayload = {
       productTitle: "",

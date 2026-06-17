@@ -19,6 +19,7 @@ const mime = new Map([
   [".jpeg", "image/jpeg"],
   [".webp", "image/webp"],
   [".svg", "image/svg+xml; charset=utf-8"],
+  [".zip", "application/zip"],
 ]);
 
 function resolveRequest(url) {

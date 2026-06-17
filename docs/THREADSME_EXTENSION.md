@@ -11,7 +11,7 @@ ThreadsMe local boleh jana story, audit produk, dan susun queue 25 posting sehar
 | Komponen | Fungsi |
 | --- | --- |
 | ThreadsMe Core | Simpan queue, Quality Gate, Product Intel, status `Pending/Blocked/Lulus/Gagal`. |
-| ThreadsMe Extension | Baca sesi Chrome, scan scheduled posts di Threads, isi composer, schedule slot, dan hantar proof. |
+| ThreadsMe Extension | Baca sesi Chrome, scan scheduled posts di Threads, isi composer, schedule slot, hantar proof, dan tick autopilot berkala. |
 | Threads Account | Akaun Akmal yang sudah login dalam Chrome. Tiada password disimpan dalam ThreadsMe. |
 
 ## Flow Disyorkan
@@ -19,14 +19,16 @@ ThreadsMe local boleh jana story, audit produk, dan susun queue 25 posting sehar
 1. Jalankan ThreadsMe AI server: `npm run ai`.
 2. Buka `http://localhost/threadsme/`.
 3. Buka `Automasi Live`.
-4. Klik `Dapatkan pairing`.
-5. Load folder `threadsme-extension` di `chrome://extensions`.
-6. Paste token pairing dalam popup extension.
-7. Klik `Connect akaun Threads`.
-8. Login Threads jika Chrome belum login.
-9. Klik `Scan Threads`.
-10. Klik `Sync ke ThreadsMe`.
-11. Jika count kurang daripada 25, klik `Isi sampai 25` hanya selepas semak bahawa extension sudah connect akaun yang betul.
+4. Klik `Muat turun extension` untuk download `threadsme-extension.zip`.
+5. Extract zip itu ke folder biasa.
+6. Load folder hasil extract di `chrome://extensions` melalui `Load unpacked`.
+7. Klik `Dapatkan pairing`.
+8. Paste token pairing dalam popup extension.
+9. Klik `Connect akaun Threads`.
+10. Login Threads jika Chrome belum login.
+11. Klik `Scan Threads`.
+12. Klik `Sync ke ThreadsMe`.
+13. Jika count kurang daripada 25, extension boleh isi slot secara autopilot setiap minit apabila bridge aktif. Butang `Isi sampai 25` kekal untuk manual override.
 
 ## Status Online
 
@@ -36,6 +38,7 @@ Dashboard memaparkan `Semua sistem online` apabila:
 - Extension token valid.
 - Extension berjaya mengesan akaun Threads login.
 - Scheduled native count mencapai target, biasanya `25/25`.
+- Autopilot background berhenti sendiri apabila count native mencapai target.
 
 Jika status masih `Belum connect`, pasang extension dan paste token pairing.
 
@@ -45,6 +48,7 @@ Jika status `Extension sync` tetapi bukan `Semua sistem online`, biasanya salah 
 - Scheduled native count kurang daripada 25.
 - Extension scan halaman yang bukan Drafts/Scheduled.
 - UI Threads berubah dan selector perlu dibaiki.
+- Token pairing belum disimpan dalam popup extension, jadi background autopilot tidak boleh berjalan.
 
 ## Guard Produk
 
@@ -69,6 +73,7 @@ Contoh guard penting:
 - Endpoint extension memerlukan bearer token.
 - CORS `chrome-extension://...` hanya dibuka untuk `/api/extension/*`.
 - Pairing token penuh hanya dipaparkan apabila Akmal klik `Dapatkan pairing`.
+- Autopilot tetap ikut had target 25 dan Quality Gate sebelum submit schedule.
 
 ## Fail Berkaitan
 

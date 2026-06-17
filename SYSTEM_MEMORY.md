@@ -35,8 +35,9 @@ Fail ini ialah rujukan tetap untuk ThreadsMe. Tujuannya supaya tetapan, keputusa
 - Cookie Shopee jika digunakan mesti disimpan sebagai env `SHOPEE_COOKIE` atau `work/private/shopee-cookie.txt`, tidak boleh di-commit.
 - Runtime JSON aktif berada dalam `work/runtime/` dan tidak di-commit.
 - Product Intel cache aktif berada di `work/runtime/product-intel-cache.json`; cache metadata sahaja, bukan secret.
-- Dashboard/API automation default kepada single-user local mode melalui `THREADSME_AUTH_REQUIRED=false`.
-- Jika mahu public deploy, set `THREADSME_AUTH_REQUIRED=true`; semua POST API protected perlukan CSRF token daripada session admin.
+- Dashboard/API automation default kepada admin-protected mode melalui `THREADSME_AUTH_REQUIRED=true`.
+- Jika mahu single-user local tanpa login, set `THREADSME_AUTH_REQUIRED=false` secara sengaja dan jangan expose AI server ke network/public.
+- Untuk public deploy, kekalkan `THREADSME_AUTH_REQUIRED=true`; semua POST API protected perlukan CSRF token daripada session admin.
 - Login admin ada `Ingat saya`: bila tick, username/password kekal di browser localStorage walaupun logout; bila untick, logout kosongkan field dan padam storage.
 - Dalam mode single-user local, `Log keluar` mesti tetap kelihatan dan set local UI lock supaya skrin login/setup muncul sehingga sign in semula.
 - CORS mesti dikunci kepada `THREADSME_ALLOWED_ORIGINS`; jangan guna wildcard bila public deploy.

@@ -9,17 +9,20 @@ Extension ini menjadi bridge antara ThreadsMe local dan akaun Threads yang sudah
 - Ambil siri seterusnya daripada `/api/extension/next`.
 - Guard preview link supaya story tidak bercanggah dengan produk affiliate.
 - Hantar proof ke ThreadsMe selepas schedule berjaya.
+- Autopilot background setiap minit: sync Threads, semak target 25, dan isi satu slot yang lulus Quality Gate jika masih kurang.
 
 ## Cara pasang
 
 1. Buka Chrome `chrome://extensions`.
 2. Aktifkan `Developer mode`.
-3. Klik `Load unpacked`.
-4. Pilih folder `threadsme-extension`.
-5. Di ThreadsMe, buka `Automasi Live` > `ThreadsMe Extension` > `Dapatkan pairing`.
-6. Salin token pairing dan paste dalam popup extension.
-7. Buka [Threads](https://www.threads.com/?hl=en) dengan akaun Akmal yang sudah login.
-8. Klik `Scan Threads`, kemudian `Sync ke ThreadsMe`.
+3. Jika guna download dari ThreadsMe, extract `threadsme-extension.zip` dahulu.
+4. Klik `Load unpacked`.
+5. Pilih folder `threadsme-extension` hasil extract.
+6. Di ThreadsMe, buka `Automasi Live` > `ThreadsMe Extension` > `Dapatkan pairing`.
+7. Salin token pairing dan paste dalam popup extension.
+8. Buka [Threads](https://www.threads.com/?hl=en) dengan akaun Akmal yang sudah login.
+9. Klik `Scan Threads`, kemudian `Sync ke ThreadsMe`.
+10. Jika autopilot bridge aktif, extension akan terus pantau dan isi slot kosong secara berkala. Butang `Isi sampai 25` kekal sebagai manual override.
 
 ## Nota keselamatan
 
@@ -27,6 +30,7 @@ Extension ini menjadi bridge antara ThreadsMe local dan akaun Threads yang sudah
 - Extension hanya guna sesi Chrome yang sudah login.
 - Semua request ke ThreadsMe perlu token pairing.
 - Kalau preview link nampak tidak sepadan dengan story, extension akan tahan schedule.
+- Autopilot hanya berjalan selepas token pairing disimpan dan masih tertakluk kepada had 25 scheduled post.
 
 ## Had
 

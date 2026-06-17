@@ -27,6 +27,9 @@ const threadsTokenFile = path.join(workspaceRoot, "work", "private", "threads-ac
 const extensionBridgeFile = path.join(workspaceRoot, "work", "private", "extension-bridge.json");
 const adminAuthFile = path.join(workspaceRoot, "work", "private", "admin-auth.json");
 const adminSessionFile = path.join(workspaceRoot, "work", "private", "admin-sessions.json");
+const extensionSourceDir = path.join(here, "threadsme-extension");
+const extensionDownloadFile = path.join(runtimeRoot, "downloads", "threadsme-extension.zip");
+const extensionDownloadTokenFile = path.join(workspaceRoot, "work", "private", "extension-download-token.json");
 const port = Number(process.env.THREADSME_AI_PORT || process.argv[2] || 8788);
 const host = "127.0.0.1";
 const deepseekUrl = "https://api.deepseek.com/chat/completions";
@@ -43,7 +46,7 @@ const publisherPreflightMinScore = Math.max(70, Math.min(Number(process.env.THRE
 const autoProductResolveLimit = Math.max(1, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_LIMIT || 8), 25));
 const autoProductMinimumConfidence = Math.max(40, Math.min(Number(process.env.THREADSME_AUTO_RESOLVE_CONFIDENCE || 62), 95));
 const autoQualityRegenerateLimit = Math.max(0, Math.min(Number(process.env.THREADSME_AUTO_REGENERATE_LIMIT || 25), 25));
-const authRequired = process.env.THREADSME_AUTH_REQUIRED === "true";
+const authRequired = process.env.THREADSME_AUTH_REQUIRED !== "false";
 const productIntelCacheTtlMs = Math.max(1, Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_DAYS || 14)) * 24 * 60 * 60 * 1000;
 const productIntelCacheMaxEntries = Math.max(50, Math.min(Number(process.env.THREADSME_PRODUCT_INTEL_CACHE_MAX || 250), 1000));
 const logMaxBytes = Math.max(64 * 1024, Math.min(Number(process.env.THREADSME_LOG_MAX_BYTES || 1_048_576), 20 * 1024 * 1024));
@@ -186,31 +189,80 @@ async function getThreadsAccessToken(config) {
   return (await readFile(file, "utf8")).replace(/^\uFEFF/, "").trim();
 }
 
-async function hasThreadsToken(config) {
+function describeThreadsTokenShape(token) {
+  const clean = String(token || "").trim();
+  if (!clean) {
+    return {
+      hasToken: false,
+      tokenLength: 0,
+      tokenShape: "missing",
+      tokenLooksUsable: false,
+      tokenWarning: "",
+    };
+  }
+
+  const shortHexToken = /^[a-f0-9]{32}$/i.test(clean);
+  const veryShortToken = clean.length < 50;
+  const tokenShape = shortHexToken ? "short_hex_32" : veryShortToken ? "short" : "access_token_like";
+  const tokenWarning = shortHexToken
+    ? "Token disimpan, tetapi bentuknya 32 aksara hex. Ini biasanya token pairing/short token, bukan access token Threads Graph API untuk publish live."
+    : veryShortToken
+      ? "Token disimpan, tetapi terlalu pendek untuk access token Threads Graph API biasa. Semak semula token live daripada Meta/Threads API."
+      : "";
+
+  return {
+    hasToken: true,
+    tokenLength: clean.length,
+    tokenShape,
+    tokenLooksUsable: !tokenWarning,
+    tokenWarning,
+  };
+}
+
+async function getThreadsTokenInfo(config) {
   try {
-    return Boolean(await getThreadsAccessToken(config));
+    return describeThreadsTokenShape(await getThreadsAccessToken(config));
   } catch {
-    return false;
+    return describeThreadsTokenShape("");
   }
 }
 
-function sanitizeThreadsConfig(config, hasToken) {
+async function hasThreadsToken(config) {
+  return (await getThreadsTokenInfo(config)).hasToken;
+}
+
+function sanitizeThreadsConfig(config, tokenState) {
+  const tokenInfo = typeof tokenState === "object" && tokenState
+    ? tokenState
+    : {
+      hasToken: Boolean(tokenState),
+      tokenLength: Boolean(tokenState) ? null : 0,
+      tokenShape: Boolean(tokenState) ? "saved" : "missing",
+      tokenLooksUsable: Boolean(tokenState),
+      tokenWarning: "",
+    };
+  const hasToken = Boolean(tokenInfo.hasToken);
+  const tokenLooksUsable = Boolean(tokenInfo.tokenLooksUsable);
   return {
     enabled: Boolean(config.enabled),
     dryRun: config.dryRun !== false,
     threadsUserId: config.threadsUserId || "",
-    hasToken: Boolean(hasToken),
+    hasToken,
+    tokenLength: tokenInfo.tokenLength ?? null,
+    tokenShape: tokenInfo.tokenShape || (hasToken ? "saved" : "missing"),
+    tokenWarning: tokenInfo.tokenWarning || "",
+    tokenLooksUsable,
     replyMode: config.replyMode || "chain",
     publishDelaySeconds: config.publishDelaySeconds,
     maxDuePerSync: config.maxDuePerSync,
-    liveReady: Boolean(config.enabled && config.dryRun === false && config.threadsUserId && hasToken),
+    liveReady: Boolean(config.enabled && config.dryRun === false && config.threadsUserId && tokenLooksUsable),
   };
 }
 
 function defaultExtensionBridgeConfig() {
   return {
     enabled: true,
-    autopilot: false,
+    autopilot: true,
     targetScheduledCount: threadsScheduleLimit,
     token: randomBytes(24).toString("hex"),
     bridgeUrl: `http://${host}:${port}`,
@@ -233,7 +285,7 @@ async function readExtensionBridgeConfig() {
     changed = true;
   }
   config.enabled = config.enabled !== false;
-  config.autopilot = Boolean(config.autopilot);
+  config.autopilot = config.autopilot !== false;
   config.targetScheduledCount = Math.max(1, Math.min(Number(config.targetScheduledCount || threadsScheduleLimit), threadsScheduleLimit));
   config.bridgeUrl = `http://${host}:${port}`;
   config.lastNativeScheduledCount = Math.max(0, Number(config.lastNativeScheduledCount || 0));
@@ -258,7 +310,15 @@ async function writeExtensionBridgeConfig(config) {
   return next;
 }
 
+function sanitizeThreadsAccountLabel(value, connected = false) {
+  const label = String(value || "").replace(/\s+/g, " ").trim();
+  if (!label) return connected ? "Threads session Chrome aktif" : "";
+  if (/\b(log in|sign in|masuk)\b/i.test(label)) return connected ? "Threads session Chrome aktif" : "";
+  return label.slice(0, 120);
+}
+
 function sanitizeExtensionBridgeConfig(config, { includeToken = false } = {}) {
+  const threadsConnected = Boolean(config.threadsConnected);
   return {
     enabled: Boolean(config.enabled),
     autopilot: Boolean(config.autopilot),
@@ -267,8 +327,8 @@ function sanitizeExtensionBridgeConfig(config, { includeToken = false } = {}) {
     token: includeToken ? config.token : undefined,
     tokenPreview: config.token ? `${String(config.token).slice(0, 6)}...${String(config.token).slice(-4)}` : "",
     lastSyncAt: config.lastSyncAt || "",
-    lastAccount: config.lastAccount || "",
-    threadsConnected: Boolean(config.threadsConnected),
+    lastAccount: sanitizeThreadsAccountLabel(config.lastAccount, threadsConnected),
+    threadsConnected,
     lastNativeScheduledCount: Number(config.lastNativeScheduledCount || 0),
     nativeScheduledNumbers: uniqueSortedNumbers(config.nativeScheduledNumbers),
     lastError: config.lastError || "",
@@ -305,6 +365,12 @@ function parseCookies(req) {
     cookies[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue.join("=") || "");
   }
   return cookies;
+}
+
+function getBearerSessionToken(req) {
+  const auth = String(req.headers.authorization || "").trim();
+  if (!/^bearer\s+/i.test(auth)) return "";
+  return auth.replace(/^bearer\s+/i, "").trim();
 }
 
 function hashPassword(password, salt) {
@@ -402,7 +468,7 @@ async function createAdminSession() {
 
 async function getAdminSession(req) {
   if (!authRequired) return { authenticated: true, csrfToken: "" };
-  const token = parseCookies(req).tm_session;
+  const token = parseCookies(req).tm_session || getBearerSessionToken(req);
   if (!token) return null;
   const sessions = await readAdminSessions();
   const session = sessions.find((item) => item.token === token);
@@ -410,7 +476,7 @@ async function getAdminSession(req) {
 }
 
 async function destroyAdminSession(req) {
-  const token = parseCookies(req).tm_session;
+  const token = parseCookies(req).tm_session || getBearerSessionToken(req);
   if (!token) return;
   const sessions = await readAdminSessions();
   await writeAdminSessions(sessions.filter((session) => session.token !== token));
@@ -428,9 +494,15 @@ function expiredAuthCookie() {
 function applyCors(req, res, pathname = "") {
   const origin = req.headers.origin;
   if (!origin) return true;
+  const extensionCorsRoutes = new Set([
+    "/api/extension/status",
+    "/api/extension/next",
+    "/api/extension/sync",
+    "/api/extension/proof",
+    "/api/extension/error",
+  ]);
   const extensionOriginAllowed =
-    pathname.startsWith("/api/extension/") &&
-    pathname !== "/api/extension/pairing" &&
+    extensionCorsRoutes.has(pathname) &&
     /^chrome-extension:\/\/[a-z]{32}$/i.test(origin);
   if (!allowedOrigins.has(origin) && !extensionOriginAllowed) return false;
   res.setHeader("access-control-allow-origin", origin);
@@ -446,7 +518,10 @@ function isPublicRoute(method, pathname) {
   if (method === "GET" && pathname === "/api/health") return true;
   if (method === "GET" && pathname === "/api/auth/status") return true;
   if (method === "POST" && ["/api/auth/login", "/api/auth/setup", "/api/auth/logout"].includes(pathname)) return true;
-  if (pathname.startsWith("/api/extension/") && pathname !== "/api/extension/pairing") return true;
+  if (
+    pathname.startsWith("/api/extension/") &&
+    !["/api/extension/pairing", "/api/extension/download", "/api/extension/download/prepare"].includes(pathname)
+  ) return true;
   return false;
 }
 
@@ -470,6 +545,7 @@ async function getAuthStatus(req) {
     setupRequired: authRequired && !auth.hasPassword,
     authenticated: !authRequired || Boolean(session),
     csrfToken: session?.csrfToken || "",
+    sessionToken: session?.token || "",
     source: auth.source,
     sessionExpiresAt: session?.expiresAt || null,
   };
@@ -1254,13 +1330,32 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
     }
   }
 
-  const activeScheduled = uniqueSortedNumbers([...scheduledSet]).filter((number) => {
+  let activeScheduled = uniqueSortedNumbers([...scheduledSet]).filter((number) => {
     const post = posts[number - 1];
     if (!post || postedSet.has(number) || failedSet.has(number)) return false;
     if (post.qualityStatus === "review") return false;
     const slotTime = parseScheduleSlot(post.slot).getTime();
     return !autoCompletePastSlots || slotTime > nowMs;
   });
+
+  const sortBySlotThenNumber = (numbers) =>
+    [...numbers].sort((a, b) => {
+      const aTime = parseScheduleSlot(posts[a - 1]?.slot).getTime();
+      const bTime = parseScheduleSlot(posts[b - 1]?.slot).getTime();
+      const safeATime = Number.isFinite(aTime) ? aTime : Number.POSITIVE_INFINITY;
+      const safeBTime = Number.isFinite(bTime) ? bTime : Number.POSITIVE_INFINITY;
+      return safeATime - safeBTime || a - b;
+    });
+  const overflowScheduled = sortBySlotThenNumber(activeScheduled).slice(threadsScheduleLimit);
+  if (overflowScheduled.length) {
+    for (const number of overflowScheduled) {
+      scheduledSet.delete(number);
+      remainingSet.delete(number);
+      preparedSet.add(number);
+    }
+    const overflowSet = new Set(overflowScheduled);
+    activeScheduled = activeScheduled.filter((number) => !overflowSet.has(number));
+  }
 
   const openSlots = Math.max(0, threadsScheduleLimit - activeScheduled.length);
   const blockedPool = uniqueSortedNumbers([...remainingSet, ...preparedSet]).filter((number) => {
@@ -1292,6 +1387,14 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
     (number) => !scheduledSet.has(number) && !postedSet.has(number) && !failedSet.has(number),
   );
 
+  const proofMap = getNativeProofMap(statusData);
+  const activeNativeProofs = {};
+  for (const number of scheduled) {
+    const proof = proofMap[number] || proofMap[String(number)];
+    if (proof) activeNativeProofs[number] = proof;
+  }
+  const nativeThreadsScheduledNumbers = uniqueSortedNumbers(Object.keys(activeNativeProofs).map(Number));
+  const nativePendingGap = nativeScheduleMode ? Math.max(0, scheduled.length - nativeThreadsScheduledNumbers.length) : 0;
   const blockedCount = remaining.length + prepared.length;
 
   let systemStatus = "Automasi aktif";
@@ -1320,6 +1423,13 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
   } else {
     systemStatus = "Automasi aktif - semua dipantau";
     systemNote = "Tiada siri Blocked. Semua siri sedang berada dalam status Lulus, Pending, atau Gagal.";
+  }
+  if (nativePendingGap) {
+    systemStatus = "Tally Threads native - perlu sync";
+    systemNote += ` ${nativePendingGap} Pending lokal belum ada proof native Threads; extension perlu sync/isi slot sebenar.`;
+  }
+  if (overflowScheduled.length) {
+    systemNote += ` ${formatNumberRange(overflowScheduled)} dipindahkan semula ke Prepared kerana had aktif ThreadsMe ialah ${threadsScheduleLimit} Pending.`;
   }
 
   const nextRelease = uniqueSortedNumbers([...scheduledSet])
@@ -1352,6 +1462,9 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
       remaining,
       publishResults,
       nativeScheduleMode,
+      nativeThreadsScheduledNumbers,
+      nativeThreadsScheduledCount: nativeThreadsScheduledNumbers.length,
+      nativeThreadsScheduleProofs: activeNativeProofs,
       automationMode: true,
       automationLimit: threadsScheduleLimit,
       publisher,
@@ -1368,6 +1481,7 @@ function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), opti
       nextBlocked,
       nextPending,
       nextRelease,
+      demotedOverLimit: overflowScheduled,
     },
   };
 }
@@ -1532,7 +1646,7 @@ async function publishScheduleNumber(number, { force = false, config = null, has
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const statusData = await readJsonFile(statusFile, {});
   const threadsConfig = config || await readThreadsConfig();
-  const tokenReady = hasToken === null ? await hasThreadsToken(threadsConfig) : hasToken;
+  const tokenReady = hasToken === null ? await getThreadsTokenInfo(threadsConfig) : hasToken;
   const publisherConfig = sanitizeThreadsConfig(threadsConfig, tokenReady);
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
   const post = posts[number - 1];
@@ -1541,7 +1655,7 @@ async function publishScheduleNumber(number, { force = false, config = null, has
     return { skipped: true, reason: "Siri sudah Lulus/posted dan tidak akan dihantar semula untuk elak duplicate.", number };
   }
   if (post.qualityStatus === "review") {
-    return { skipped: true, reason: "Siri masih Perlu Semak dan tidak akan dipublish sehingga lulus Quality Gate.", number };
+    return { skipped: true, reason: "Siri masih Auto Guard dan tidak akan dipublish sehingga lulus Quality Gate.", number };
   }
 
   const slotTime = parseScheduleSlot(post.slot).getTime();
@@ -1649,7 +1763,8 @@ async function runThreadsPublisherDue({ scheduleData, statusData, config, hasTok
       active: Boolean(config.enabled),
       liveReady: false,
       attempted: [],
-      skippedReason: config.enabled ? "Threads API belum lengkap atau masih dry-run." : "Live publisher belum diaktifkan.",
+      skippedReason: publisherConfig.tokenWarning
+        || (config.enabled ? "Threads API belum lengkap atau masih dry-run." : "Live publisher belum diaktifkan."),
     };
   }
 
@@ -1682,7 +1797,7 @@ async function runThreadsMeAutomation() {
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const statusData = await readJsonFile(statusFile, {});
   const threadsConfig = await readThreadsConfig();
-  const tokenReady = await hasThreadsToken(threadsConfig);
+  const tokenReady = await getThreadsTokenInfo(threadsConfig);
   const publisherConfig = sanitizeThreadsConfig(threadsConfig, tokenReady);
   const result = buildAutomatedStatus(scheduleData, statusData, Date.now(), {
     autoCompletePastSlots: false,
@@ -1785,10 +1900,10 @@ async function scheduleGeneratedVersions(input, result, runId) {
   const updatedStatus = {
     ...statusData,
     remaining: uniqueSortedNumbers([...(statusData.remaining || []), ...queuedNumbers]),
-    systemStatus: reviewCount ? "Quality Gate - perlu semak" : "Automasi aktif - story dijadualkan",
+    systemStatus: reviewCount ? "Quality Gate - Auto Guard" : "Automasi aktif - story dijadualkan",
     systemNote: queuedNumbers.length
-      ? `${formatNumberRange(queuedNumbers)} berjaya dijana dan dimasukkan ke Jadual Threads. ${reviewCount ? `${reviewCount} versi ditahan sebagai Perlu Semak.` : "Semua versi lulus Quality Gate."}`
-      : `${reviewCount} versi ditahan sebagai Perlu Semak. Tiada siri dimasukkan ke Jadual Threads.`,
+      ? `${formatNumberRange(queuedNumbers)} berjaya dijana dan dimasukkan ke Jadual Threads. ${reviewCount ? `${reviewCount} versi ditahan Auto Guard dan akan diproses automatik.` : "Semua versi lulus Quality Gate."}`
+      : `${reviewCount} versi ditahan Auto Guard untuk auto-recovery. Tiada siri dimasukkan ke Jadual Threads lagi.`,
     lastGeneratedScheduleAt: `${malaysiaNow()} GMT+8`,
   };
 
@@ -1840,6 +1955,17 @@ function sendJson(res, status, body, headers = {}) {
   res.end(JSON.stringify(body));
 }
 
+function sendBinary(res, status, body, headers = {}) {
+  res.writeHead(status, {
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "same-origin",
+    "x-frame-options": "DENY",
+    ...headers,
+  });
+  res.end(body);
+}
+
 async function readBody(req) {
   let body = "";
   for await (const chunk of req) {
@@ -1851,6 +1977,149 @@ async function readBody(req) {
   } catch {
     throw new HttpError(400, "JSON request tidak sah.");
   }
+}
+
+const crc32Table = new Uint32Array(256);
+for (let index = 0; index < crc32Table.length; index += 1) {
+  let crc = index;
+  for (let bit = 0; bit < 8; bit += 1) {
+    crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+  }
+  crc32Table[index] = crc >>> 0;
+}
+
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (const byte of buffer) {
+    crc = crc32Table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function dosDateTime(date = new Date()) {
+  const year = Math.min(2107, Math.max(1980, date.getFullYear()));
+  const dosTime = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2);
+  const dosDate = ((year - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+  return { dosTime, dosDate };
+}
+
+function writeZipHeader(buffer, values) {
+  buffer.writeUInt32LE(values.signature, 0);
+  buffer.writeUInt16LE(values.versionMadeBy ?? 20, 4);
+  buffer.writeUInt16LE(values.versionNeeded ?? 20, values.central ? 6 : 4);
+  const flagsOffset = values.central ? 8 : 6;
+  buffer.writeUInt16LE(0, flagsOffset);
+  buffer.writeUInt16LE(0, flagsOffset + 2);
+  buffer.writeUInt16LE(values.dosTime, flagsOffset + 4);
+  buffer.writeUInt16LE(values.dosDate, flagsOffset + 6);
+  buffer.writeUInt32LE(values.crc, flagsOffset + 8);
+  buffer.writeUInt32LE(values.size, flagsOffset + 12);
+  buffer.writeUInt32LE(values.size, flagsOffset + 16);
+  buffer.writeUInt16LE(values.nameLength, flagsOffset + 20);
+  buffer.writeUInt16LE(0, flagsOffset + 22);
+  if (values.central) {
+    buffer.writeUInt16LE(0, flagsOffset + 24);
+    buffer.writeUInt16LE(0, flagsOffset + 26);
+    buffer.writeUInt16LE(0, flagsOffset + 28);
+    buffer.writeUInt32LE(0, flagsOffset + 30);
+    buffer.writeUInt32LE(values.offset, flagsOffset + 34);
+  }
+}
+
+async function buildExtensionZip() {
+  const files = [
+    "manifest.json",
+    "README.md",
+    "src/background.js",
+    "src/content.js",
+    "src/popup.css",
+    "src/popup.html",
+    "src/popup.js",
+  ];
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+  const { dosTime, dosDate } = dosDateTime();
+
+  for (const relativePath of files) {
+    const fullPath = path.resolve(extensionSourceDir, relativePath);
+    const safeRelative = path.relative(extensionSourceDir, fullPath);
+    if (safeRelative.startsWith("..") || path.isAbsolute(safeRelative)) {
+      throw new HttpError(500, "Pakej extension tidak sah.");
+    }
+    const data = await readFile(fullPath).catch(() => null);
+    if (!data) throw new HttpError(500, "Pakej extension tidak lengkap. Semak folder threadsme-extension.");
+    const name = Buffer.from(relativePath.replace(/\\/g, "/"), "utf8");
+    const checksum = crc32(data);
+    const local = Buffer.alloc(30 + name.length);
+    writeZipHeader(local, {
+      signature: 0x04034b50,
+      dosTime,
+      dosDate,
+      crc: checksum,
+      size: data.length,
+      nameLength: name.length,
+    });
+    name.copy(local, 30);
+    chunks.push(local, data);
+
+    const centralEntry = Buffer.alloc(46 + name.length);
+    writeZipHeader(centralEntry, {
+      central: true,
+      signature: 0x02014b50,
+      dosTime,
+      dosDate,
+      crc: checksum,
+      size: data.length,
+      nameLength: name.length,
+      offset,
+    });
+    name.copy(centralEntry, 46);
+    central.push(centralEntry);
+    offset += local.length + data.length;
+  }
+
+  const centralOffset = offset;
+  const centralSize = central.reduce((total, entry) => total + entry.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(files.length, 8);
+  end.writeUInt16LE(files.length, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(centralOffset, 16);
+  end.writeUInt16LE(0, 20);
+  return Buffer.concat([...chunks, ...central, end]);
+}
+
+async function prepareExtensionDownload() {
+  const zip = await buildExtensionZip();
+  const token = randomBytes(24).toString("hex");
+  const expiresAt = Date.now() + 10 * 60 * 1000;
+  await mkdir(path.dirname(extensionDownloadFile), { recursive: true });
+  await writeFile(extensionDownloadFile, zip);
+  await writeJsonFile(extensionDownloadTokenFile, {
+    token,
+    expiresAt,
+    file: path.relative(workspaceRoot, extensionDownloadFile),
+    bytes: zip.length,
+    createdAt: `${malaysiaNow()} GMT+8`,
+  });
+  return {
+    url: `/api/extension/download-file?token=${encodeURIComponent(token)}`,
+    fileName: "threadsme-extension.zip",
+    bytes: zip.length,
+    expiresAt,
+  };
+}
+
+async function servePreparedExtensionDownload(token) {
+  const saved = await readJsonFile(extensionDownloadTokenFile, null);
+  if (!saved?.token || !safeCompareString(token, saved.token) || Number(saved.expiresAt || 0) < Date.now()) {
+    unauthorized("Link download extension sudah tamat tempoh. Klik Muat turun extension sekali lagi.");
+  }
+  return readFile(extensionDownloadFile);
 }
 
 function buildPrompt(input) {
@@ -3060,6 +3329,7 @@ function limitPostText(text, maxLength = threadPostMaxChars) {
 }
 
 function inferFallbackProduct(input) {
+  const explicitTitle = cleanTitleCandidate(input.productTitle || input.productName || "");
   const context = [
     input.productTitle,
     input.productCategory,
@@ -3073,7 +3343,7 @@ function inferFallbackProduct(input) {
 
   if (/sambal|cili|chili|sos|pedas|makan|lauk/.test(context)) {
     return {
-      name: "sambal ni",
+      name: explicitTitle || "sambal ni",
       moment: "bila makan ringkas pun rasa macam ada benda yang cukup",
       bridge: "Kalau hari-hari sibuk dan nak lauk yang mudah naikkan selera",
     };
@@ -3081,7 +3351,7 @@ function inferFallbackProduct(input) {
 
   if (/marble|dinding|wall|sheet|wallpaper|rumah|deko|dekor/.test(context)) {
     return {
-      name: "flexi marble sheet ni",
+      name: explicitTitle || "flexi marble sheet ni",
       moment: "bila nak mula kemaskan satu sudut rumah tanpa renovate besar",
       bridge: "Kalau tengah cari cara kecil untuk bagi ruang nampak lebih kemas",
     };
@@ -3089,7 +3359,7 @@ function inferFallbackProduct(input) {
 
   if (/lampu|light|led|fairy|bilik|meja/.test(context)) {
     return {
-      name: "lampu kecil ni",
+      name: explicitTitle || "lampu kecil ni",
       moment: "bila ruang biasa tiba-tiba rasa lebih tenang waktu malam",
       bridge: "Kalau nak mula ubah mood bilik atau meja kerja dengan bajet kecil",
     };
@@ -3097,16 +3367,20 @@ function inferFallbackProduct(input) {
 
   if (/organizer|storage|rak|kotak|susun|kemas/.test(context)) {
     return {
-      name: "organizer ni",
+      name: explicitTitle || "organizer ni",
       moment: "bila barang yang selalu bersepah akhirnya ada tempat sendiri",
       bridge: "Kalau tengah cuba kemaskan rutin rumah sedikit demi sedikit",
     };
   }
 
   return {
-    name: "produk ni",
-    moment: "bila satu benda kecil boleh buat rutin harian rasa kurang berat",
-    bridge: "Kalau tengah cari benda kecil yang boleh bantu mulakan perubahan",
+    name: explicitTitle || "produk ni",
+    moment: explicitTitle
+      ? `bila ${explicitTitle} jadi pilihan kecil yang bantu rutin rasa lebih tersusun`
+      : "bila satu benda kecil boleh buat rutin harian rasa kurang berat",
+    bridge: explicitTitle
+      ? `Kalau tengah pertimbang ${explicitTitle} untuk bantu rutin harian`
+      : "Kalau tengah cari benda kecil yang boleh bantu mulakan perubahan",
   };
 }
 
@@ -3322,8 +3596,8 @@ async function updateStoryRunStatus(versionId, status) {
       updatedStatus.systemNote = `Siri ${scheduleNumber} ditanda Gagal daripada Status story dijana.`;
     } else if (status === "review") {
       updatedStatus.prepared = addNumber(updatedStatus.prepared, scheduleNumber);
-      updatedStatus.systemStatus = "Status manual - Perlu Semak";
-      updatedStatus.systemNote = `Siri ${scheduleNumber} ditahan sebagai Perlu Semak sebelum masuk queue aktif.`;
+      updatedStatus.systemStatus = "Status manual - Auto Guard";
+      updatedStatus.systemNote = `Siri ${scheduleNumber} ditahan Auto Guard sebelum masuk queue aktif.`;
     } else {
       updatedStatus.remaining = addNumber(updatedStatus.remaining, scheduleNumber);
       updatedStatus.systemStatus = "Status manual - mohon Pending";
@@ -3410,11 +3684,11 @@ function productAuditSummary(scheduleData, runs) {
     for (const version of run.versions || []) {
       if (version.status === "review") {
         const number = Number(version.scheduleNumber);
-        if (!Number.isInteger(number) || number < 1 || !posts[number - 1]) continue;
-        if (number && posts[number - 1]?.qualityStatus === "review") continue;
+        if (Number.isInteger(number) && number > 0 && posts[number - 1]?.qualityStatus === "review") continue;
         runReviewItems.push({
           runId: run.id,
           versionId: version.id,
+          scheduleNumber: Number.isInteger(number) && number > 0 ? number : null,
           label: version.label,
           productName: run.productName,
           qualityScore: version.qualityScore,
@@ -3451,6 +3725,185 @@ function productAuditSummary(scheduleData, runs) {
   };
 }
 
+async function autoScheduleStoryRunReviews(scheduleData, runs) {
+  const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const targets = [];
+
+  for (const run of runs) {
+    for (const version of run.versions || []) {
+      if (version.status !== "review" && version.qualityStatus !== "review") continue;
+      if (Number(version.scheduleNumber)) continue;
+      if (Number(version.autoRegenerateAttempts || 0) >= 4) continue;
+
+      const productTitle = String(version.productTitle || run.productTitle || run.productName || "").trim();
+      const productCategory = String(version.productCategory || run.productCategory || "").trim();
+      const affiliateLink = String(version.affiliateLink || run.affiliateLink || scheduleData.affiliate_link || "").trim();
+      if (!productTitle || !affiliateLink) {
+        version.autoAuditStatus = "auto_guarded_missing_product";
+        version.autoAuditDecision = "Autopilot guard: tajuk produk atau link affiliate belum cukup untuk schedule.";
+        version.autoAuditAt = `${malaysiaNow()} GMT+8`;
+        continue;
+      }
+
+      targets.push({ run, version, productTitle, productCategory, affiliateLink });
+      if (targets.length >= autoQualityRegenerateLimit) break;
+    }
+    if (targets.length >= autoQualityRegenerateLimit) break;
+  }
+
+  if (!targets.length) {
+    return { scheduledNumbers: [], guardedCount: 0, fallbackCount: 0, attemptedCount: 0 };
+  }
+
+  const groups = new Map();
+  for (const target of targets) {
+    const postsPerDay = Math.max(1, Math.min(Number(target.run.postsPerDay || maxPostingPerDay), maxPostingPerDay));
+    const key = [
+      target.affiliateLink,
+      target.productTitle,
+      target.productCategory,
+      target.run.imageUrl || "",
+      postsPerDay,
+    ].join("|");
+    if (!groups.has(key)) {
+      groups.set(key, {
+        affiliateLink: target.affiliateLink,
+        productTitle: target.productTitle,
+        productCategory: target.productCategory,
+        imageUrl: target.run.imageUrl || "",
+        postsPerDay,
+        targets: [],
+      });
+    }
+    groups.get(key).targets.push(target);
+  }
+
+  const scheduledNumbers = [];
+  let guardedCount = 0;
+  let fallbackCount = 0;
+
+  for (const group of groups.values()) {
+    const sourceText = group.targets
+      .map((target) => {
+        const reasons = Array.isArray(target.version.qualityReasons) ? target.version.qualityReasons.join("; ") : "";
+        return [
+          target.version.label,
+          target.run.productName,
+          reasons,
+          `Panjang lama: ${target.version.mainLength || "-"} / ${target.version.reply1Length || "-"} / ${target.version.reply2Length || "-"}`,
+        ].filter(Boolean).join("\n");
+      })
+      .join("\n\n---\n\n");
+
+    const result = await generateStory({
+      productTitle: group.productTitle,
+      productCategory: group.productCategory,
+      sourceText,
+      imageNotes: "Autopilot recover story-run review: baiki supaya produk disebut jelas, deep storytelling BM Malaysia, soft-sell, setiap post 250-295 aksara dan bawah 300.",
+      imageUrl: group.imageUrl,
+      theme: "auto",
+      versions: group.targets.length,
+      postsPerDay: group.postsPerDay,
+      affiliateLink: group.affiliateLink,
+      productVerified: true,
+      productIntelEvidence: "auto_story_run_recovery",
+      productIntelConfidence: 100,
+    });
+    if (result.fallback) fallbackCount += 1;
+
+    const passedItems = [];
+    group.targets.forEach((target, index) => {
+      const version = result.versions[index];
+      target.version.autoRegenerateAttempts = Number(target.version.autoRegenerateAttempts || 0) + 1;
+      target.version.autoAuditAt = `${malaysiaNow()} GMT+8`;
+      if (!version) {
+        guardedCount += 1;
+        target.version.autoAuditStatus = "auto_regenerate_missing_output";
+        target.version.autoAuditDecision = "DeepSeek tidak pulangkan output untuk versi ini. Autopilot akan cuba lagi kemudian.";
+        return;
+      }
+
+      const quality = auditStoryQuality(version, group, group.affiliateLink);
+      target.version.main = version.main;
+      target.version.reply1 = version.reply1;
+      target.version.reply2 = version.reply2;
+      target.version.mainLength = String(version.main || "").length;
+      target.version.reply1Length = String(version.reply1 || "").length;
+      target.version.reply2Length = String(version.reply2 || "").length;
+      target.version.qualityStatus = quality.status;
+      target.version.qualityScore = quality.score;
+      target.version.qualityChecks = quality.checks;
+      target.version.qualityReasons = quality.reasons;
+      target.version.productTitle = group.productTitle;
+      target.version.productCategory = group.productCategory;
+      target.version.productVerified = true;
+      target.version.productIntelEvidence = "auto_story_run_recovery";
+      target.version.productIntelConfidence = 100;
+
+      if (quality.status !== "passed") {
+        guardedCount += 1;
+        target.version.status = "review";
+        target.version.autoAuditStatus = "auto_regenerated_review";
+        target.version.autoAuditDecision = "Autopilot sudah regenerate tetapi Quality Gate masih guard. Akan cuba lagi jika masih dalam had.";
+        return;
+      }
+
+      passedItems.push({ target, version, quality });
+    });
+
+    const slots = buildScheduleSlots(posts, passedItems.length, group.postsPerDay);
+    passedItems.forEach(({ target, version, quality }, index) => {
+      const number = posts.length + 1;
+      const slot = slots[index];
+      posts.push({
+        slot,
+        main: version.main,
+        reply1: version.reply1,
+        reply2: version.reply2,
+        affiliateLink: group.affiliateLink,
+        source: "generated",
+        generatedRunId: target.run.id,
+        generatedLabel: target.version.label || `Versi ${number}`,
+        postsPerDay: group.postsPerDay,
+        createdAt: `${malaysiaNow()} GMT+8`,
+        productTitle: group.productTitle,
+        productCategory: group.productCategory,
+        productVerified: true,
+        productIntelEvidence: "auto_story_run_recovery",
+        productIntelConfidence: 100,
+        productIntelSource: "ThreadsMe Auto Audit story-run recovery",
+        qualityStatus: quality.status,
+        qualityScore: quality.score,
+        qualityChecks: quality.checks,
+        qualityReasons: quality.reasons,
+        autoAuditStatus: "auto_story_run_scheduled",
+        autoAuditDecision: "Story-run review dibaiki automatik dan dimasukkan ke queue.",
+        autoAuditAt: `${malaysiaNow()} GMT+8`,
+      });
+
+      target.version.status = "blocked";
+      target.version.scheduleNumber = number;
+      target.version.slot = slot;
+      target.version.autoAuditStatus = "auto_story_run_scheduled";
+      target.version.autoAuditDecision = "Autopilot regenerate selesai dan versi dimasukkan ke Jadual Threads.";
+      target.version.updatedAt = `${malaysiaNow()} GMT+8`;
+      scheduledNumbers.push(number);
+    });
+
+    if (passedItems.length) {
+      group.targets[0].run.autoStoryRunRecoveryAt = `${malaysiaNow()} GMT+8`;
+    }
+  }
+
+  scheduleData.posts = posts;
+  return {
+    scheduledNumbers,
+    guardedCount,
+    fallbackCount,
+    attemptedCount: targets.length,
+  };
+}
+
 async function getProductAudit() {
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const runs = await readStoryRuns();
@@ -3476,7 +3929,7 @@ async function getProductAudit() {
         : post.productVerified === false
           ? "Produk auto confidence rendah"
         : post.qualityStatus === "review"
-          ? "Perlu Semak Quality Gate"
+          ? "Auto Guard Quality Gate"
           : summary.targetLengthIssues.some((issue) => issue.number === number)
             ? "Belum capai 250-295 aksara"
           : "Had aksara / metadata",
@@ -3529,6 +3982,16 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
 
     if (!productTitle) {
       autoGuarded += 1;
+      actions.push({
+        number,
+        priority: "high",
+        mode: "autopilot_guard",
+        targetView: "audit",
+        title: `Siri ${number} ditahan autopilot`,
+        detail: `${statusLabel} belum ada tajuk produk yang cukup yakin daripada Shopee/DeepSeek.`,
+        nextStep: "ThreadsMe akan cuba Product Intel/DeepSeek pada sync seterusnya. Edit hanya jika Akmal mahu override.",
+        cta: "Edit pilihan",
+      });
       return;
     }
 
@@ -3536,6 +3999,16 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
     if (post.productVerified === false && !autopilotVerified) {
       verifyNeeded += 1;
       autoGuarded += 1;
+      actions.push({
+        number,
+        priority: "medium",
+        mode: "autopilot_guard",
+        targetView: "audit",
+        title: `Confidence produk rendah`,
+        detail: `${statusLabel} - ${productTitle}. DeepSeek/Product Intel belum cukup yakin untuk autopilot publish.`,
+        nextStep: "Siri ini diguard senyap dan tidak masuk publish sehingga confidence atau story dibaiki.",
+        cta: "Edit pilihan",
+      });
       return;
     }
 
@@ -3547,6 +4020,16 @@ function buildAutoAuditReport(scheduleData, statusData, runs) {
 
     regenerateReady += 1;
     autoGuarded += 1;
+    actions.push({
+      number,
+      priority: overLimit ? "high" : "medium",
+      mode: "autopilot_regenerate",
+      targetView: "audit",
+      title: overLimit ? "Had 300 aksara dikesan" : "Quality Gate minta baiki story",
+      detail: `${statusLabel} - ${productTitle}. Score ${quality.score || 0}/100.`,
+      nextStep: "ThreadsMe akan cuba auto-regenerate dengan DeepSeek supaya story kekal selari dengan produk.",
+      cta: "Auto baiki",
+    });
   });
 
   const visibleActions = actions
@@ -3680,6 +4163,7 @@ async function runAutoProductAudit() {
   const statusData = await readJsonFile(statusFile, {});
   const runs = await readStoryRuns();
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
+  const recoveredStoryRuns = await autoScheduleStoryRunReviews(scheduleData, runs);
   if (!posts.length && (countStatusNumbers(statusData) > 0 || runs.some((run) => Array.isArray(run.versions) && run.versions.length))) {
     return {
       updated: 0,
@@ -3847,6 +4331,14 @@ async function runAutoProductAudit() {
     passedCount += regenerated.updatedNumbers.length;
     reviewCount = Math.max(0, reviewCount - regenerated.updatedNumbers.length);
   }
+  if (recoveredStoryRuns.scheduledNumbers.length) {
+    touched += recoveredStoryRuns.scheduledNumbers.length;
+    passedCount += recoveredStoryRuns.scheduledNumbers.length;
+  }
+  if (recoveredStoryRuns.guardedCount) {
+    protectedCount += recoveredStoryRuns.guardedCount;
+    reviewCount += recoveredStoryRuns.guardedCount;
+  }
 
   for (const number of lengthAdjustedNumbers) {
     const post = posts[number - 1];
@@ -3867,9 +4359,9 @@ async function runAutoProductAudit() {
   scheduleData.posts = posts;
   scheduleData.lastAutoProductAuditAt = `${malaysiaNow()} GMT+8`;
   scheduleData.lastAutoProductAuditNote =
-    `${touched} siri dikemas kini. ${lengthAdjustedNumbers.length} capai target 250-295 aksara, ${autoFilledCount} auto isi produk, ${linkVerifiedCount} link-verified, ${protectedCount} siri diguard automatik, ${regenerated.updatedNumbers.length} auto-regenerate.`;
+    `${touched} siri dikemas kini. ${lengthAdjustedNumbers.length} capai target 250-295 aksara, ${autoFilledCount} auto isi produk, ${linkVerifiedCount} link-verified, ${protectedCount} siri diguard automatik, ${regenerated.updatedNumbers.length} auto-regenerate, ${recoveredStoryRuns.scheduledNumbers.length} story-run auto masuk jadual.`;
   await writeJsonFile(scheduleFile, scheduleData);
-  if (regenerated.updatedNumbers.length || lengthAdjustedNumbers.length) await writeStoryRuns(runs);
+  if (regenerated.updatedNumbers.length || lengthAdjustedNumbers.length || recoveredStoryRuns.attemptedCount) await writeStoryRuns(runs);
 
   const automation = buildAutomatedStatus(scheduleData, statusData, Date.now());
   await writeJsonFile(statusFile, {
@@ -3894,6 +4386,9 @@ async function runAutoProductAudit() {
     autoRegeneratedCount: regenerated.updatedNumbers.length,
     autoRegeneratedNumbers: regenerated.updatedNumbers,
     autoRegenerateFallbackCount: regenerated.fallbackCount,
+    autoStoryRunRecoveredCount: recoveredStoryRuns.scheduledNumbers.length,
+    autoStoryRunRecoveredNumbers: recoveredStoryRuns.scheduledNumbers,
+    autoStoryRunGuardedCount: recoveredStoryRuns.guardedCount,
     status: automation.status,
     productAudit: await getProductAudit(),
     ...report,
@@ -4824,7 +5319,7 @@ async function inspectProductIntel(input) {
 
 async function getPublisherStatus() {
   const config = await readThreadsConfig();
-  const hasToken = await hasThreadsToken(config);
+  const hasToken = await getThreadsTokenInfo(config);
   const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
   const statusData = await readJsonFile(statusFile, {});
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
@@ -4957,11 +5452,12 @@ function buildExtensionQueue(scheduleData, statusData, bridge) {
   const blocked = uniqueSortedNumbers([...(statusData.remaining || []), ...(statusData.prepared || [])]).filter(
     (number) => !postedSet.has(number) && !failedSet.has(number),
   );
+  const actionableNumbers = new Set([...localPending, ...blocked]);
   const proofMap = getNativeProofMap(statusData);
   const proofNumbers = uniqueSortedNumbers([
     ...Object.keys(proofMap).map(Number),
     ...(bridge.nativeScheduledNumbers || []),
-  ]);
+  ]).filter((number) => actionableNumbers.has(number));
   const proofSet = new Set(proofNumbers);
   const orderedNumbers = uniqueSortedNumbers([...localPending, ...blocked]);
   const rejected = [];
@@ -5063,37 +5559,68 @@ async function syncExtensionNativeSchedule(req, input) {
   const statusData = await readJsonFile(statusFile, {});
   const scheduledItems = Array.isArray(input.scheduledItems) ? input.scheduledItems : [];
   const nativeScheduledCount = Math.max(0, Number(input.nativeScheduledCount ?? scheduledItems.length ?? 0));
+  const scanReliable = input.scanReliable !== false;
   const matchedNumbers = matchNativeScheduledItems(scheduleData, scheduledItems);
+  const stableNativeNumbers = scanReliable
+    ? matchedNumbers
+    : uniqueSortedNumbers(bridge.nativeScheduledNumbers);
+  const stableNativeCount = scanReliable
+    ? Math.max(nativeScheduledCount, matchedNumbers.length)
+    : Math.max(Number(bridge.lastNativeScheduledCount || 0), stableNativeNumbers.length);
+  const threadsConnected = Boolean(input.threadsConnected);
+  const accountLabel = sanitizeThreadsAccountLabel(input.account, threadsConnected);
+  const existingProofMap = getNativeProofMap(statusData);
+  const retainedProofMap = scanReliable
+    ? stableNativeNumbers.reduce((map, number) => {
+        map[number] = existingProofMap[number] || {
+          number,
+          status: "native_scheduled",
+          scheduledAt: `${malaysiaNow()} GMT+8`,
+          slot: scheduleData.posts?.[number - 1]?.slot || "",
+          account: accountLabel,
+          proofText: "",
+          nativeScheduledCount: stableNativeCount,
+        };
+        return map;
+      }, {})
+    : existingProofMap;
   const nextBridge = await writeExtensionBridgeConfig({
     ...bridge,
     lastSyncAt: `${malaysiaNow()} GMT+8`,
-    lastAccount: String(input.account || "").slice(0, 120),
-    threadsConnected: Boolean(input.threadsConnected),
-    lastNativeScheduledCount: nativeScheduledCount,
-    nativeScheduledNumbers: matchedNumbers,
-    lastError: "",
+    lastAccount: accountLabel,
+    threadsConnected,
+    lastNativeScheduledCount: stableNativeCount,
+    nativeScheduledNumbers: stableNativeNumbers,
+    lastError: scanReliable ? "" : "Scan Threads kurang pasti; kiraan proof lama dikekalkan sehingga scheduled list dapat dibaca.",
   });
   const updatedStatus = {
     ...statusData,
     nativeScheduleMode: true,
     lastNativeScheduleSyncAt: `${malaysiaNow()} GMT+8`,
-    lastNativeThreadsConnected: Boolean(input.threadsConnected),
-    lastNativeScheduledCount: nativeScheduledCount,
+    lastNativeThreadsConnected: threadsConnected,
+    lastNativeScheduledCount: stableNativeCount,
     nativeScheduledMatchedNumbers: matchedNumbers,
+    nativeScheduleScanReliable: scanReliable,
+    nativeScheduleScanNote: input.scanNote || "",
+    nativeThreadsScheduleProofs: retainedProofMap,
     systemStatus: "Threads native sync",
-    systemNote: `Extension kesan ${nativeScheduledCount} scheduled post dalam Threads${matchedNumbers.length ? `, ${matchedNumbers.length} dipadankan dengan siri lokal` : ""}.`,
+    systemNote: scanReliable
+      ? `Extension kesan ${stableNativeCount} scheduled post dalam Threads${matchedNumbers.length ? `, ${matchedNumbers.length} dipadankan dengan siri lokal` : ""}.`
+      : "Extension belum dapat baca senarai scheduled dengan yakin; ThreadsMe kekalkan proof sedia ada dan minta scan pada halaman scheduled.",
   };
   await writeJsonFile(statusFile, updatedStatus);
   await appendRuntimeLog("extension-events.log", {
     event: "native_schedule_sync",
-    account: input.account || "",
-    threadsConnected: Boolean(input.threadsConnected),
+    account: accountLabel,
+    threadsConnected,
     nativeScheduledCount,
+    scanReliable,
+    scanNote: input.scanNote || "",
     matchedNumbers,
   });
   return {
     bridge: sanitizeExtensionBridgeConfig(nextBridge),
-    nativeScheduledCount,
+    nativeScheduledCount: stableNativeCount,
     matchedNumbers,
     queue: buildExtensionQueue(scheduleData, updatedStatus, nextBridge),
   };
@@ -5109,6 +5636,25 @@ async function recordExtensionProof(req, input) {
   const post = posts[number - 1];
   if (!post) throw new HttpError(404, `Siri ${number} tidak wujud dalam jadual.`);
   if (uniqueSortedNumbers(statusData.posted).includes(number)) badRequest(`Siri ${number} sudah Lulus/posted dan tidak patut dijadualkan semula.`);
+  if (uniqueSortedNumbers(statusData.failed).includes(number)) badRequest(`Siri ${number} berstatus Gagal dan perlu dibaiki sebelum boleh dijadualkan semula.`);
+  if (post.qualityStatus === "review") badRequest(`Siri ${number} masih Auto Guard dan tidak boleh dijadualkan oleh extension.`);
+  const eligibleNumbers = new Set([
+    ...uniqueSortedNumbers(statusData.scheduled),
+    ...uniqueSortedNumbers(statusData.remaining),
+    ...uniqueSortedNumbers(statusData.prepared),
+  ]);
+  if (eligibleNumbers.size && !eligibleNumbers.has(number)) {
+    badRequest(`Siri ${number} bukan dalam queue aktif ThreadsMe.`);
+  }
+  const affiliateLink = String(post.affiliateLink || scheduleData.affiliate_link || "").trim();
+  const quality = auditStoryQuality(post, {
+    productTitle: post.productTitle,
+    productCategory: post.productCategory,
+    affiliateLink,
+  }, affiliateLink);
+  if (quality.status === "review" || Number(quality.score || 0) < 75) {
+    badRequest(`Siri ${number} tidak lulus Quality Gate (${quality.score || 0}/100).`);
+  }
 
   const slot = String(input.slot || post.slot || "").trim();
   if (slot && post.slot !== slot) {
@@ -5123,10 +5669,12 @@ async function recordExtensionProof(req, input) {
     status: "native_scheduled",
     scheduledAt: `${malaysiaNow()} GMT+8`,
     slot: slot || post.slot || "",
-    account: String(input.account || bridge.lastAccount || "").slice(0, 120),
+    account: sanitizeThreadsAccountLabel(input.account || bridge.lastAccount, true),
     proofText: limitPostText(input.proofText || "", 280),
     nativeScheduledCount: Math.max(0, Number(input.nativeScheduledCount || bridge.lastNativeScheduledCount || 0)),
   };
+  const nextNativeNumbers = addNumber(bridge.nativeScheduledNumbers, number);
+  proof.nativeScheduledCount = Math.max(proof.nativeScheduledCount, nextNativeNumbers.length);
   proofMap[number] = proof;
   const publishResults = statusData.publishResults && typeof statusData.publishResults === "object" ? statusData.publishResults : {};
   const updatedStatus = {
@@ -5167,7 +5715,7 @@ async function recordExtensionProof(req, input) {
     lastAccount: proof.account,
     threadsConnected: true,
     lastNativeScheduledCount: proof.nativeScheduledCount,
-    nativeScheduledNumbers: addNumber(bridge.nativeScheduledNumbers, number),
+    nativeScheduledNumbers: nextNativeNumbers,
     lastProofs: [...(bridge.lastProofs || []), proof],
     lastError: "",
   });
@@ -5318,7 +5866,7 @@ async function fileStatus(file, { json = false } = {}) {
 
 async function getOpsHealth() {
   const config = await readThreadsConfig();
-  const hasToken = await hasThreadsToken(config);
+  const hasToken = await getThreadsTokenInfo(config);
   const extension = await readExtensionBridgeConfig();
   return {
     ok: true,
@@ -5382,13 +5930,16 @@ async function updatePublisherConfig(input) {
   };
 
   const token = String(input.accessToken || "").trim();
+  if ((token || next.enabled) && !next.threadsUserId) {
+    badRequest("Threads User ID wajib diisi sebelum simpan token atau aktifkan publisher worker.");
+  }
   if (token) {
     await mkdir(path.dirname(threadsTokenFile), { recursive: true });
     await writeFile(threadsTokenFile, token, "utf8");
   }
 
   const saved = await writeThreadsConfig(next);
-  const hasToken = await hasThreadsToken(saved);
+  const hasToken = await getThreadsTokenInfo(saved);
   const statusData = await readJsonFile(statusFile, {});
   await writeJsonFile(statusFile, {
     ...statusData,
@@ -5492,7 +6043,7 @@ const server = createServer(async (req, res) => {
       const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
       const statusData = await readJsonFile(statusFile, {});
       const config = await readThreadsConfig();
-      const hasToken = await hasThreadsToken(config);
+      const hasToken = await getThreadsTokenInfo(config);
       const runs = await readStoryRuns();
       const autoAudit = buildAutoAuditReport(scheduleData, statusData, runs);
       let hasKey = false;
@@ -5530,6 +6081,31 @@ const server = createServer(async (req, res) => {
     if (req.method === "GET" && url.pathname === "/api/extension/pairing") {
       const bridge = await readExtensionBridgeConfig();
       sendJson(res, 200, { ok: true, bridge: sanitizeExtensionBridgeConfig(bridge, { includeToken: true }) });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/extension/download") {
+      const zip = await buildExtensionZip();
+      sendBinary(res, 200, zip, {
+        "content-type": "application/zip",
+        "content-length": String(zip.length),
+        "content-disposition": 'attachment; filename="threadsme-extension.zip"',
+      });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/extension/download/prepare") {
+      sendJson(res, 200, { ok: true, download: await prepareExtensionDownload() });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/extension/download-file") {
+      const zip = await servePreparedExtensionDownload(String(url.searchParams.get("token") || ""));
+      sendBinary(res, 200, zip, {
+        "content-type": "application/zip",
+        "content-length": String(zip.length),
+        "content-disposition": 'attachment; filename="threadsme-extension.zip"',
+      });
       return;
     }
 
@@ -5606,7 +6182,7 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "POST" && url.pathname === "/api/threads-publisher/run-due") {
       const config = await readThreadsConfig();
-      const hasToken = await hasThreadsToken(config);
+      const hasToken = await getThreadsTokenInfo(config);
       const scheduleData = await readJsonFile(scheduleFile, { posts: [] });
       const statusData = await readJsonFile(statusFile, {});
       const publisher = await runThreadsPublisherDue({ scheduleData, statusData, config, hasToken });

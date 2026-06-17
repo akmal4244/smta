@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="./popup.css" />
   </head>
   <body>
+    <div id="toastStack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
     <main class="popup-shell">
       <header>
         <div class="mark">T</div>
@@ -23,7 +24,7 @@
         </label>
         <label>
           <span>Token pairing</span>
-          <input id="token" type="password" autocomplete="off" />
+          <input id="token" type="text" autocomplete="off" spellcheck="false" placeholder="Paste token 48 aksara daripada ThreadsMe" />
         </label>
         <label>
           <span>Delay manusiawi</span>

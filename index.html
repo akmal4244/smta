@@ -16,10 +16,11 @@
     />
     <meta property="og:type" content="website" />
     <link rel="icon" href="./assets/threadsme-favicon.svg?v=4" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=24" />
+    <link rel="stylesheet" href="./styles.css?v=26" />
   </head>
   <body>
     <a class="skip-link" href="#mainContent">Langkau ke kandungan utama</a>
+    <div id="toastStack" class="toast-stack" aria-live="polite" aria-atomic="false"></div>
     <section id="authGate" class="auth-gate" aria-label="Login admin ThreadsMe" hidden>
       <article class="auth-card">
         <span class="brand-mark">
@@ -181,15 +182,15 @@
           <section class="action-center-panel reveal" aria-label="Tindakan saya ringkas">
             <div class="panel-heading compact-heading">
               <div>
-                <h2>Tindakan Saya</h2>
-                <p>ThreadsMe urus semakan berulang secara autopilot. Akmal hanya guna edit bila mahu override.</p>
+              <h2>Tindakan Saya</h2>
+              <p>ThreadsMe jalankan Product Intel, DeepSeek, Quality Gate dan queue secara autopilot.</p>
               </div>
               <span id="actionCenterBadge">Auto audit</span>
             </div>
             <div id="dashboardActionSummary" class="action-summary-grid"></div>
             <div id="dashboardActionsList" class="action-list compact"></div>
             <div class="action-center-actions">
-              <button id="runAutoAuditDashboardButton" type="button">Jalankan auto audit</button>
+              <button id="runAutoAuditDashboardButton" type="button">Semak auto audit sekarang</button>
               <button id="openActionsButton" type="button">Buka pusat tindakan</button>
             </div>
           </section>
@@ -239,7 +240,7 @@
             <div>
               <p class="eyebrow">Auto Audit</p>
               <h1>Tindakan Saya</h1>
-              <p class="subtitle">ThreadsMe tapis isu produk, tahan story yang belum selamat, dan cadangkan tindakan paling penting dahulu.</p>
+              <p class="subtitle">Semua flow utama berjalan autopilot dengan Product Intel, DeepSeek, Quality Gate, queue 25 slot dan extension Threads.</p>
             </div>
             <span id="actionPageBadge">Menunggu audit</span>
           </header>
@@ -248,8 +249,8 @@
             <article class="action-center-panel action-wide">
               <div class="panel-heading compact-heading">
                 <div>
-                  <h2>Queue tindakan</h2>
-                  <p>Fokus pada tindakan yang menjaga kualiti copywriting untuk netizen Malaysia.</p>
+                  <h2>Flow Autopilot DeepSeek</h2>
+                  <p>ThreadsMe automatik kenal produk, semak story, baiki copywriting, susun queue dan sync Threads.</p>
                 </div>
                 <span id="actionPageNote">Auto semak setiap 60 saat</span>
               </div>
@@ -266,7 +267,7 @@
               </div>
               <div id="autoAuditGuide" class="auto-audit-guide"></div>
               <div class="action-center-actions stacked">
-                <button id="runAutoAuditPageButton" type="button">Run auto audit sekarang</button>
+                <button id="runAutoAuditPageButton" type="button">Semak auto audit sekarang</button>
                 <button id="downloadBackupButton" type="button">Backup runtime</button>
                 <button id="openAuditFromActionsButton" type="button">Buka Audit Produk</button>
               </div>
@@ -420,7 +421,7 @@
                 <option value="failed">Gagal</option>
                 <option value="blocked">Blocked</option>
                 <option value="prepared">Disediakan</option>
-                <option value="review">Perlu Semak</option>
+                <option value="review">Auto Guard</option>
                 <option value="issue">Ada isu</option>
               </select>
             </label>
@@ -656,9 +657,11 @@
               <div class="extension-bridge-box">
                 <span>Token pairing</span>
                 <code id="extensionTokenPreview">Klik dapatkan token</code>
+                <input id="extensionTokenFull" class="extension-token-full" type="text" readonly value="" hidden aria-label="Token pairing penuh" />
               </div>
-              <p id="extensionHelpText" class="extension-help">Load folder threadsme-extension di Chrome, connect akaun Threads, kemudian sync. Bila semua hijau, ThreadsMe boleh tally schedule sebenar.</p>
+              <p id="extensionHelpText" class="extension-help">Load folder threadsme-extension di Chrome, connect akaun Threads, kemudian sync. Jika pairing masih gagal selepas update, reload ThreadsMe Extension di Chrome dahulu.</p>
               <div class="publisher-actions">
+                <button id="downloadExtensionButton" type="button">Muat turun extension</button>
                 <button id="loadExtensionPairingButton" type="button">Dapatkan pairing</button>
                 <button id="copyExtensionTokenButton" type="button">Salin token</button>
               </div>
@@ -758,6 +761,6 @@
 
     <script src="./assets/vendor/gsap.min.js?v=1"></script>
     <script src="./assets/vendor/ScrollTrigger.min.js?v=1"></script>
-    <script src="./app.js?v=31"></script>
+    <script src="./app.js?v=35"></script>
   </body>
 </html>

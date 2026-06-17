@@ -8,7 +8,7 @@ Nama rasmi sistem:
 | --- | --- |
 | Nama sistem | ThreadsMe |
 | Repo slug | threadsme |
-| Versi | v0.10.0 |
+| Versi | v0.10.1 |
 | Bahasa UI | Bahasa Melayu Malaysia |
 | Zon masa | Asia/Kuala_Lumpur |
 | Kredit | Sistem Dibangunkan Sepenuhnya Oleh Akmal Marvis |
@@ -32,7 +32,7 @@ Fail berikut menjadi rujukan utama bila kerja ThreadsMe disambung semula:
 - Pilihan posting sehari termasuk `25 posting / hari`.
 - Auto cipta story dan terus masukkan ke jadual ThreadsMe.
 - Kalendar jadual harian dengan semakan 25 slot sehari.
-- Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, `Disediakan`, dan `Perlu Semak`.
+- Status posting: `Lulus`, `Pending`, `Blocked`, `Gagal`, `Disediakan`, dan `Auto Guard`.
 - Auto promote `Blocked` kepada `Pending` bila slot schedule kosong.
 - Auto Audit Produk berjalan bersama sync automation untuk sahkan produk secara autopilot, auto-regenerate story yang tidak selari, dan guard output berisiko.
 - Auto Audit juga memanjangkan semua siri kepada sasaran 250-295 aksara setiap bahagian supaya limit Threads dimanfaatkan tanpa melepasi 300 aksara.
@@ -75,10 +75,12 @@ Flow terbaik untuk akaun Threads ialah:
 
 1. Akmal login Threads dalam Chrome seperti biasa.
 2. Buka ThreadsMe > `Automasi Live` > `ThreadsMe Extension`.
-3. Klik `Dapatkan pairing`, kemudian salin token pairing.
-4. Di Chrome, buka `chrome://extensions`, aktifkan Developer Mode, dan `Load unpacked` folder `threadsme-extension`.
-5. Paste Bridge URL dan token dalam popup extension.
-6. Klik `Connect akaun Threads`, login jika perlu, kemudian klik `Scan Threads` dan `Sync ke ThreadsMe`.
+3. Klik `Muat turun extension` untuk download `threadsme-extension.zip`.
+4. Extract zip itu ke folder biasa.
+5. Di Chrome, buka `chrome://extensions`, aktifkan Developer Mode, dan `Load unpacked` folder hasil extract.
+6. Klik `Dapatkan pairing`, kemudian salin token pairing.
+7. Paste Bridge URL dan token dalam popup extension.
+8. Klik `Connect akaun Threads`, login jika perlu, kemudian klik `Scan Threads` dan `Sync ke ThreadsMe`.
 
 Status dianggap lengkap bila dashboard memaparkan `Semua sistem online`:
 
@@ -146,20 +148,24 @@ http://127.0.0.1:8788
 
 ## Keselamatan Admin
 
-ThreadsMe default kepada mode single-user local kerana sistem ini digunakan oleh Akmal seorang di PC sendiri.
+ThreadsMe default kepada mode admin-protected supaya dashboard, extension pairing, dan API automation tidak terbuka tanpa sesi.
 
 Default local:
 
-- `THREADSME_AUTH_REQUIRED=false`.
-- Dashboard dan API automation boleh jalan terus tanpa sesi admin.
-- DeepSeek key status dipaparkan terus di health/GUI.
+- `THREADSME_AUTH_REQUIRED=true`.
+- Login pertama melalui GUI akan setup username/password admin jika belum ada.
+- DeepSeek key status hanya dipaparkan selepas sesi admin sah.
+
+Jika mahu mod tanpa login untuk PC sendiri sahaja:
+
+- Set `THREADSME_AUTH_REQUIRED=false` secara sengaja.
+- Jangan expose AI server ke network/public dalam mod ini.
 
 Jika mahu deploy public:
 
-- Set `THREADSME_AUTH_REQUIRED=true`.
+- Kekalkan `THREADSME_AUTH_REQUIRED=true`.
 - Username dan password admin boleh diset melalui GUI pada login pertama; password juga boleh diset melalui env `THREADSME_ADMIN_PASSWORD`.
 - Checkbox `Ingat saya` di login menyimpan username/password dalam browser localStorage bila ditick. Jika untick, login/logout akan kosongkan semula field dan padam storage.
-- Dalam mode local, butang `Log keluar` tetap dipaparkan dan menyimpan lock UI tempatan supaya skrin `Log masuk/Setup` muncul sehingga user sign in semula.
 - Session cookie ialah `HttpOnly` + `SameSite=Lax`.
 - Semua `POST` protected perlukan CSRF token daripada login session.
 - CORS hanya benarkan origin dalam `THREADSME_ALLOWED_ORIGINS`.
@@ -360,7 +366,7 @@ flowchart TD
   E --> H["Publisher Preflight DeepSeek"]
   H --> J{"Lulus?"}
   J -->|Ya| K["Publisher dry-run atau live Threads API"]
-  J -->|Tidak| L["Tahan sebagai Perlu Semak"]
+  J -->|Tidak| L["Tahan sebagai Auto Guard"]
   K --> I["Status Lulus atau Gagal"]
 ```
 
@@ -404,8 +410,15 @@ ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jad
 ### v0.9.8
 
 - Tambah `Publisher Preflight` sebelum publish live: Quality Gate tempatan, Product Intel, dan DeepSeek final QA.
-- Publisher akan tahan siri secara automatik sebagai `Perlu Semak` jika DeepSeek mengesan story lari produk, claim pelik, BM tidak natural, CTA/link bermasalah, atau score bawah minimum.
+- Publisher akan tahan siri secara automatik sebagai `Auto Guard` jika DeepSeek mengesan story lari produk, claim pelik, BM tidak natural, CTA/link bermasalah, atau score bawah minimum.
 - Automation Health dan Publisher Status kini memaparkan ringkasan Preflight supaya status sebelum posting boleh dipantau.
+
+### v0.10.1
+
+- Auth API kini admin-protected secara default (`THREADSME_AUTH_REQUIRED=true`), dan mod tanpa login hanya aktif jika env diset `false` secara sengaja.
+- Native schedule proof dibersihkan ikut siri `Pending` sebenar supaya nombor scheduled lama yang sudah lepas tidak terus dikira sebagai native scheduled aktif.
+- Extension Bridge kini default autopilot aktif dan background extension boleh tick setiap minit untuk sync Threads serta isi satu slot lulus Quality Gate sehingga target 25 dicapai.
+- Extension proof kini kira minimum berdasarkan proof berjaya supaya scan UI Threads yang gagal baca count tidak menyebabkan schedule berlebihan.
 
 ### v0.9.7
 
@@ -414,7 +427,7 @@ ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jad
 - Automation Health kini papar jumlah cache produk dalam kad `Shopee Intel`.
 - Runtime backup kini sertakan Product Intel cache.
 - Smoke test kini menguji Product Intel cache hit dan backup cache.
-- Default auth ditukar kepada single-user local mode (`THREADSME_AUTH_REQUIRED=false`) supaya sistem Akmal jalan terus tanpa login.
+- Default auth kini admin-protected (`THREADSME_AUTH_REQUIRED=true`) kecuali mod tanpa login diaktifkan secara sengaja untuk PC sendiri.
 
 ### v0.9.6
 
@@ -456,7 +469,7 @@ ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jad
 ### v0.9.1
 
 - Pindahkan schedule aktif ke `work/runtime/threads-schedule.json` supaya generate story tidak mengubah fail tracked repo.
-- Kalendar kini mengira `Perlu Semak` sebagai isu harian.
+- Kalendar kini mengira `Auto Guard` sebagai isu harian.
 - Product Audit tidak lagi double-count review item yang sama antara schedule dan story-runs.
 
 ### v0.9.0
@@ -464,7 +477,7 @@ ThreadsMe mengekalkan queue aktif maksimum 25 siri Pending untuk mengelakkan jad
 - Tukar nama sistem rasmi kepada ThreadsMe di UI, docs, env, aset, dan route localhost.
 - Tukar URL rasmi kepada `http://localhost/threadsme/`.
 - Tambah modul `Audit Produk` untuk batch metadata dan regenerate story.
-- Tambah `Quality Gate` sebelum story masuk jadual supaya output yang tidak relevan ditahan sebagai `Perlu Semak`.
+- Tambah `Quality Gate` sebelum story masuk jadual supaya output yang tidak relevan ditahan sebagai `Auto Guard`.
 - Tambah `Product Intelligence` untuk cuba kenal pasti tajuk/kategori produk daripada link Shopee/affiliate/gambar/nota.
 - Tambah panel `Automation Health` dan `Preview Netizen`.
 - Pindahkan runtime JSON aktif termasuk schedule ke `work/runtime/` supaya repo tidak kerap dirty kerana automation.

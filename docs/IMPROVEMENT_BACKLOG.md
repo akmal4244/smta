@@ -34,7 +34,7 @@ Cadangan:
   - tidak claim berlebihan,
   - Reply 2 ada link,
   - semua bahagian bawah 300 aksara.
-- Jika gagal, status kekal `Perlu Semak` dan jangan publish live.
+- Jika gagal, status kekal `Auto Guard` dan jangan publish live.
 
 ## P1 - Automasi Produk Shopee
 
