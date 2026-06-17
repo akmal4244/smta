@@ -37,7 +37,9 @@ const state = {
   shopeeCookie: { hasCookie: false, source: "none", file: "" },
 };
 
-const AI_SERVER_URL = "http://127.0.0.1:8788";
+const THREADSME_BROWSER_CONFIG = window.THREADSME_CONFIG || {};
+const AI_SERVER_URL = String(THREADSME_BROWSER_CONFIG.apiUrl || "http://127.0.0.1:8788").replace(/\/+$/, "");
+const AI_SERVER_LABEL = AI_SERVER_URL.replace(/^https?:\/\//i, "");
 const THREADS_SCHEDULE_LIMIT = 25;
 const DAILY_POSTING_TARGET = 25;
 const DEFAULT_PRODUCT_IMAGE = "./assets/flexi-marble-sheet.webp";
@@ -50,7 +52,7 @@ function normalizeApiError(error) {
   const rawMessage = String(error?.message || "");
   if (error instanceof TypeError || /failed to fetch|load failed|networkerror/i.test(rawMessage)) {
     return new Error(
-      "Server API ThreadsMe belum berjalan di 127.0.0.1:8788. Saya dah hidupkan semula; refresh page atau tekan Masuk sekali lagi.",
+      `Server API ThreadsMe belum berjalan di ${AI_SERVER_LABEL}. Saya dah hidupkan semula; refresh page atau tekan Masuk sekali lagi.`,
     );
   }
   return error instanceof Error ? error : new Error(rawMessage || "Request API ThreadsMe gagal.");
@@ -1311,7 +1313,7 @@ function renderAutomationHealth() {
     {
       label: "AI Server",
       value: health.ok === false ? "Offline" : state.automationOnline ? "Online" : "Semak",
-      detail: health.error || "Endpoint lokal 127.0.0.1:8788",
+      detail: health.error || `Endpoint API ${AI_SERVER_LABEL}`,
       tone: health.ok === false ? "bad" : state.automationOnline ? "good" : "warn",
     },
     {

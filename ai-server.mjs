@@ -54,7 +54,7 @@ const logBackups = Math.max(1, Math.min(Number(process.env.THREADSME_LOG_BACKUPS
 const allowedOrigins = new Set(
   String(
     process.env.THREADSME_ALLOWED_ORIGINS ||
-      "http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,http://localhost:8791,http://127.0.0.1:8791",
+      "http://localhost,http://localhost:80,http://127.0.0.1,http://127.0.0.1:80,http://localhost:8791,http://127.0.0.1:8791,https://threadsme.akmalmarvis.com",
   )
     .split(",")
     .map((origin) => origin.trim())
