@@ -30,8 +30,10 @@ const adminSessionFile = path.join(workspaceRoot, "work", "private", "admin-sess
 const extensionSourceDir = path.join(here, "threadsme-extension");
 const extensionDownloadFile = path.join(runtimeRoot, "downloads", "threadsme-extension.zip");
 const extensionDownloadTokenFile = path.join(workspaceRoot, "work", "private", "extension-download-token.json");
-const port = Number(process.env.THREADSME_AI_PORT || process.argv[2] || 8788);
-const host = "127.0.0.1";
+const port = Number(process.env.PORT || process.env.THREADSME_AI_PORT || process.argv[2] || 8788);
+const host = process.env.THREADSME_AI_HOST || process.env.HOST || "127.0.0.1";
+const publicBaseUrl = String(process.env.THREADSME_PUBLIC_URL || "").replace(/\/+$/, "");
+const forceHttps = process.env.THREADSME_FORCE_HTTPS === "true";
 const deepseekUrl = "https://api.deepseek.com/chat/completions";
 const threadsGraphUrl = "https://graph.threads.net/v1.0";
 const threadsScheduleLimit = 25;
@@ -61,6 +63,25 @@ const allowedOrigins = new Set(
     .filter(Boolean),
 );
 const adminSessionTtlMs = Math.max(15, Number(process.env.THREADSME_SESSION_HOURS || 24)) * 60 * 60 * 1000;
+const staticMime = new Map([
+  [".html", "text/html; charset=utf-8"],
+  [".css", "text/css; charset=utf-8"],
+  [".js", "text/javascript; charset=utf-8"],
+  [".json", "application/json; charset=utf-8"],
+  [".png", "image/png"],
+  [".jpg", "image/jpeg"],
+  [".jpeg", "image/jpeg"],
+  [".webp", "image/webp"],
+  [".svg", "image/svg+xml; charset=utf-8"],
+  [".zip", "application/zip"],
+]);
+const blockedStaticRuntimeFiles = new Set([
+  "status.json",
+  "story-runs.json",
+  "threads_flexi_marble_schedule.json",
+  "publish-log.json",
+  "product-intel-cache.json",
+]);
 const postingTimePresets = {
   1: ["10:00"],
   3: ["09:30", "12:30", "20:30"],
@@ -1964,6 +1985,75 @@ function sendBinary(res, status, body, headers = {}) {
     ...headers,
   });
   res.end(body);
+}
+
+function redirectToHttpsIfNeeded(req, res) {
+  if (!forceHttps) return false;
+  const proto = String(req.headers["x-forwarded-proto"] || "").toLowerCase();
+  if (proto !== "http") return false;
+  const hostHeader = String(req.headers.host || "");
+  if (!hostHeader) return false;
+  const target = `https://${hostHeader}${req.url || "/"}`;
+  res.writeHead(308, {
+    location: target,
+    "cache-control": "no-store",
+    "x-content-type-options": "nosniff",
+  });
+  res.end();
+  return true;
+}
+
+function resolveStaticRequest(pathname) {
+  const normalized = decodeURIComponent(pathname || "/");
+  const cleanPath = normalized.replace(/^\/threadsme(?=\/|$)/i, "") || "/";
+  const relativePath = cleanPath.endsWith("/") ? `${cleanPath}index.html` : cleanPath;
+  const target = path.resolve(here, `.${relativePath}`);
+  const relative = path.relative(here, target);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  if (blockedStaticRuntimeFiles.has(path.basename(target))) return null;
+  return target;
+}
+
+async function serveStatic(req, res, url) {
+  if (!["GET", "HEAD"].includes(req.method || "GET")) {
+    sendJson(res, 405, { ok: false, error: "Method not allowed" }, { allow: "GET, HEAD" });
+    return true;
+  }
+
+  const target = resolveStaticRequest(url.pathname);
+  if (!target) {
+    sendJson(res, 404, { ok: false, error: "Not found" });
+    return true;
+  }
+
+  let filePath = target;
+  try {
+    const info = await stat(filePath);
+    if (info.isDirectory()) filePath = path.join(filePath, "index.html");
+  } catch {
+    filePath = path.join(here, "index.html");
+  }
+
+  const relative = path.relative(here, filePath);
+  if (relative.startsWith("..") || path.isAbsolute(relative) || blockedStaticRuntimeFiles.has(path.basename(filePath))) {
+    sendJson(res, 404, { ok: false, error: "Not found" });
+    return true;
+  }
+
+  const body = await readFile(filePath);
+  const ext = path.extname(filePath).toLowerCase();
+  res.writeHead(200, {
+    "content-type": staticMime.get(ext) || "application/octet-stream",
+    "cache-control": ext === ".html" ? "no-store" : "public, max-age=300",
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "same-origin",
+    "x-frame-options": "DENY",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "content-security-policy":
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; connect-src 'self' http://127.0.0.1:8788 http://localhost:8788; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+  });
+  res.end(req.method === "HEAD" ? undefined : body);
+  return true;
 }
 
 async function readBody(req) {
@@ -5956,6 +6046,8 @@ async function updatePublisherConfig(input) {
 const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || "/", `http://${host}:${port}`);
+    if (redirectToHttpsIfNeeded(req, res)) return;
+
     const corsAllowed = applyCors(req, res, url.pathname);
     if (!corsAllowed) {
       sendJson(res, 403, { ok: false, error: "Origin tidak dibenarkan." });
@@ -5964,6 +6056,11 @@ const server = createServer(async (req, res) => {
 
     if (req.method === "OPTIONS") {
       sendJson(res, 204, {});
+      return;
+    }
+
+    if (!url.pathname.startsWith("/api/")) {
+      await serveStatic(req, res, url);
       return;
     }
 
