@@ -1,0 +1,515 @@
+/* ThreadsMe UI refinement layer: loaded by config.js after the core stylesheet. */
+
+.tm-ui-ready body {
+  --tm-touch: 44px;
+}
+
+.metrics-grid article,
+.status-card,
+.story-lab,
+.calendar-panel,
+.queue-panel,
+.preview-panel,
+.publisher-panel,
+.action-center-panel,
+.health-panel,
+.audit-panel {
+  transition: border-color 180ms var(--motion), box-shadow 180ms var(--motion), transform 180ms var(--motion);
+}
+
+.metrics-grid article:hover,
+.metrics-grid article:focus-visible {
+  border-color: rgba(18, 111, 103, 0.28);
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.metrics-grid article strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-workflow-guide {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(18, 111, 103, 0.2);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(18, 111, 103, 0.075), transparent 52%),
+    rgba(255, 255, 255, 0.94);
+  box-shadow: var(--shadow-surface);
+  padding: 16px;
+}
+
+.tm-workflow-heading {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tm-workflow-heading h2,
+.tm-workflow-heading p,
+.tm-workflow-heading span {
+  margin: 0;
+}
+
+.tm-workflow-heading h2 {
+  font-size: 1.12rem;
+}
+
+.tm-workflow-heading > div > span {
+  display: block;
+  margin-top: 4px;
+  color: var(--kumo-subtle);
+  font-size: 0.84rem;
+}
+
+.tm-workflow-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tm-workflow-step {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid var(--kumo-hairline);
+  border-radius: var(--radius);
+  background: var(--kumo-surface-soft);
+  padding: 11px;
+}
+
+.tm-workflow-step.complete {
+  border-color: rgba(47, 106, 73, 0.28);
+  background: var(--kumo-success-soft);
+}
+
+.tm-step-number {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--kumo-ink);
+  color: #fff;
+  font-weight: 900;
+}
+
+.tm-workflow-step.complete .tm-step-number {
+  background: var(--kumo-success);
+}
+
+.tm-workflow-step div {
+  display: grid;
+  min-width: 0;
+}
+
+.tm-workflow-step strong {
+  color: var(--kumo-ink);
+  font-size: 0.86rem;
+}
+
+.tm-workflow-step small {
+  color: var(--kumo-subtle);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.tm-workflow-step mark {
+  border-radius: 999px;
+  background: var(--kumo-neutral-soft);
+  color: var(--kumo-neutral);
+  padding: 4px 8px;
+  font-size: 0.68rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.tm-workflow-step.complete mark {
+  background: rgba(47, 106, 73, 0.12);
+  color: var(--kumo-success);
+}
+
+.tm-secondary-button {
+  border: 1px solid var(--kumo-hairline-strong);
+  background: var(--kumo-surface);
+  color: var(--kumo-ink-soft);
+  box-shadow: none;
+}
+
+.tm-secondary-button:hover {
+  border-color: rgba(18, 111, 103, 0.4);
+  background: var(--kumo-brand-soft);
+  color: var(--kumo-brand-strong);
+  box-shadow: none;
+}
+
+.tm-field-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--kumo-neutral-soft);
+  color: var(--kumo-neutral);
+  padding: 2px 7px;
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: middle;
+}
+
+.tm-simple-mode .tm-advanced-field {
+  display: none;
+}
+
+.tm-simple-mode .story-two-col:has(> .tm-advanced-field) {
+  grid-template-columns: 1fr;
+}
+
+.tm-product-intel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.product-intel-strip .tm-product-intel-actions button {
+  min-height: 38px;
+}
+
+.tm-filter-chips {
+  display: flex;
+  gap: 8px;
+  margin: -4px 0 16px;
+  overflow-x: auto;
+  padding: 4px 1px 7px;
+  scrollbar-width: thin;
+}
+
+.tm-filter-chip {
+  flex: 0 0 auto;
+  min-height: 36px;
+  border: 1px solid var(--kumo-hairline);
+  border-radius: 999px;
+  background: var(--kumo-surface);
+  color: var(--kumo-subtle);
+  padding: 0 13px;
+  box-shadow: none;
+  font-size: 0.78rem;
+}
+
+.tm-filter-chip:hover,
+.tm-filter-chip.active {
+  border-color: rgba(18, 111, 103, 0.35);
+  background: var(--kumo-brand-soft);
+  color: var(--kumo-brand-strong);
+  box-shadow: none;
+}
+
+.tm-mobile-topbar,
+.tm-bottom-nav,
+.tm-nav-backdrop {
+  display: none;
+}
+
+.tm-ui-notice {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 95;
+  max-width: min(390px, calc(100vw - 32px));
+  transform: translateY(18px);
+  border: 1px solid var(--kumo-hairline-strong);
+  border-radius: var(--radius);
+  background: var(--kumo-ink);
+  color: #fff;
+  box-shadow: 0 18px 48px rgba(16, 20, 19, 0.24);
+  padding: 12px 14px;
+  opacity: 0;
+  transition: opacity 180ms var(--motion), transform 180ms var(--motion);
+}
+
+.tm-ui-notice.visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.tm-ui-notice.success {
+  background: var(--kumo-success);
+}
+
+.tm-ui-notice.warn {
+  background: var(--kumo-warning);
+}
+
+.tm-ui-notice.error {
+  background: var(--kumo-danger);
+}
+
+@media (max-width: 1180px) {
+  .tm-workflow-step {
+    grid-template-columns: 36px minmax(0, 1fr);
+  }
+
+  .tm-workflow-step mark {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 860px) {
+  body {
+    padding-top: 62px;
+    padding-bottom: calc(78px + env(safe-area-inset-bottom));
+  }
+
+  .tm-mobile-topbar {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 52;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+    min-height: 62px;
+    border-bottom: 1px solid rgba(221, 227, 220, 0.92);
+    background: rgba(250, 251, 248, 0.94);
+    box-shadow: 0 10px 30px rgba(25, 31, 29, 0.08);
+    padding: 8px 10px;
+    backdrop-filter: blur(16px);
+  }
+
+  .tm-mobile-menu-button {
+    min-width: 58px;
+    min-height: var(--tm-touch);
+    padding: 0 11px;
+  }
+
+  .tm-mobile-title {
+    display: grid;
+    min-width: 0;
+  }
+
+  .tm-mobile-title strong,
+  .tm-mobile-title span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tm-mobile-title strong {
+    color: var(--kumo-ink);
+    font-size: 0.9rem;
+  }
+
+  .tm-mobile-title span {
+    color: var(--kumo-subtle);
+    font-size: 0.7rem;
+  }
+
+  .tm-mobile-pulse {
+    border-radius: 999px;
+    background: var(--kumo-brand-soft);
+    color: var(--kumo-brand-strong);
+    padding: 6px 9px;
+    font-size: 0.68rem;
+    font-weight: 850;
+    white-space: nowrap;
+  }
+
+  .side-menu.tm-navigation-drawer {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 81;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto 1fr auto auto;
+    width: min(330px, 88vw);
+    min-height: 100dvh;
+    transform: translateX(-105%);
+    border-width: 0 1px 0 0;
+    border-radius: 0;
+    padding: 14px;
+    overflow-y: auto;
+    transition: transform 220ms var(--motion);
+  }
+
+  .tm-nav-open .side-menu.tm-navigation-drawer {
+    transform: translateX(0);
+  }
+
+  .side-menu.tm-navigation-drawer .side-nav {
+    display: grid;
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .side-menu.tm-navigation-drawer .nav-item {
+    grid-template-columns: 30px minmax(0, 1fr);
+    flex: none;
+    width: 100%;
+    min-height: 54px;
+  }
+
+  .side-menu.tm-navigation-drawer .side-note {
+    display: grid;
+  }
+
+  .side-menu.tm-navigation-drawer .side-credit {
+    display: grid;
+    justify-content: stretch;
+  }
+
+  .side-menu.tm-navigation-drawer .side-credit > span,
+  .side-menu.tm-navigation-drawer .side-credit > strong {
+    display: block;
+  }
+
+  .side-menu.tm-navigation-drawer .side-credit .logout-button {
+    width: 100%;
+    margin-top: 10px;
+  }
+
+  .tm-nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    border: 0;
+    border-radius: 0;
+    background: rgba(16, 20, 19, 0.42);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms var(--motion);
+  }
+
+  .tm-nav-open .tm-nav-backdrop {
+    display: block;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .tm-bottom-nav {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 50;
+    display: flex;
+    gap: 4px;
+    min-height: calc(66px + env(safe-area-inset-bottom));
+    border-top: 1px solid rgba(221, 227, 220, 0.96);
+    background: rgba(250, 251, 248, 0.96);
+    box-shadow: 0 -12px 36px rgba(25, 31, 29, 0.08);
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    overflow-x: auto;
+    backdrop-filter: blur(18px);
+  }
+
+  .tm-bottom-nav-item {
+    display: grid;
+    grid-template-rows: 24px auto;
+    place-items: center;
+    flex: 1 0 72px;
+    min-width: 72px;
+    min-height: 54px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--kumo-subtle);
+    padding: 4px 6px;
+    box-shadow: none;
+  }
+
+  .tm-bottom-nav-item span {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 7px;
+    background: var(--kumo-neutral-soft);
+    font-size: 0.72rem;
+    font-weight: 900;
+  }
+
+  .tm-bottom-nav-item strong {
+    max-width: 74px;
+    overflow: hidden;
+    font-size: 0.65rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tm-bottom-nav-item:hover,
+  .tm-bottom-nav-item.active {
+    transform: none;
+    background: var(--kumo-brand-soft);
+    color: var(--kumo-brand-strong);
+    box-shadow: none;
+  }
+
+  .tm-bottom-nav-item.active span {
+    background: var(--kumo-brand);
+    color: #fff;
+  }
+
+  .tm-workflow-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .tm-workflow-step {
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+  }
+
+  .tm-workflow-step mark {
+    grid-column: auto;
+  }
+
+  .tm-ui-notice {
+    right: 10px;
+    bottom: calc(78px + env(safe-area-inset-bottom));
+    left: 10px;
+    max-width: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .tm-mobile-pulse {
+    max-width: 116px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tm-workflow-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tm-workflow-heading .tm-secondary-button {
+    width: 100%;
+  }
+
+  .tm-workflow-step {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  .tm-workflow-step mark {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .tm-product-intel-actions,
+  .tm-product-intel-actions button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .side-menu.tm-navigation-drawer,
+  .tm-nav-backdrop,
+  .tm-ui-notice {
+    transition: none;
+  }
+}
