@@ -179,4 +179,5 @@ await patchExtensionContent();
 await patchConfig();
 await patchRestoreValidation();
 await patchReadme();
+await import("./apply-flow-proof-fixes.mjs");
 console.log("Flow continuity source patches applied.");
