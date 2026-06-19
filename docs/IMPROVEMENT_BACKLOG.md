@@ -4,7 +4,7 @@ Fail ini menyimpan cadangan tambah baik yang sudah dikenal pasti supaya kerja se
 
 ## P0 - Kualiti Produk dan Story
 
-Status v0.9.7: asas `Auto Audit Produk`, `Tindakan Saya`, `Product Audit`, preview ayat semasa, `Quality Gate`, `Product Intelligence`, auto product resolver Shopee/DeepSeek, Product Intel runtime cache, `Automation Health`, `Preview Netizen`, runtime `work/runtime/`, render DOM selamat, single-user local mode, optional admin auth untuk public deploy, locked CORS, CSRF, runtime backup, local GSAP, WebP preview, dan smoke test sudah dibina. Backlog ini kini fokus kepada penambahbaikan selepas modul asas stabil.
+Status v0.10.2: asas `Auto Audit Produk`, `Tindakan Saya`, `Product Audit`, preview ayat semasa, `Quality Gate`, `Product Intelligence`, auto product resolver Shopee/DeepSeek, Product Intel runtime cache, `Automation Health`, `Preview Netizen`, runtime `work/runtime/`, render DOM selamat, single-user local mode, optional admin auth untuk public deploy, locked CORS, CSRF, runtime backup/restore CLI, local GSAP, WebP preview, UI mobile friendly, dan smoke test sudah dibina. Backlog ini kini fokus kepada penambahbaikan selepas modul asas stabil.
 
 ### Product Audit
 
@@ -40,6 +40,10 @@ Cadangan:
 
 ### Auto Product Intelligence
 
+Status v0.10.2:
+
+- Butang `Semak tanpa cache` sudah ditambah untuk refresh Product Intel bagi link semasa tanpa menggunakan cache lama.
+
 Masalah:
 
 - Link gambar Shopee tidak cukup untuk AI tahu produk.
@@ -48,30 +52,29 @@ Masalah:
 Cadangan:
 
 - Tambah wizard cookie/login Shopee yang lebih mesra daripada textarea private semasa.
-- Tambah butang clear/refresh Product Intel cache untuk link tertentu.
+- Tambah fungsi clear cache terpilih dengan senarai entry dan confirmation.
 - Paparkan beberapa calon tajuk produk untuk user pilih.
 
 ## P1 - Keselamatan Frontend
 
-### Ganti Render `innerHTML`
+### Render DOM Selamat
 
-Masalah:
+Status v0.10.2:
 
-- Beberapa bahagian UI render data dinamik menggunakan `innerHTML`.
-- Ini boleh merosakkan layout jika teks AI/user mengandungi HTML.
+- UI enhancement baharu menggunakan DOM API dan QA menghalang penggunaan `innerHTML`/`insertAdjacentHTML` dalam lapisan tersebut.
 
 Cadangan:
 
-- Tambah ujian frontend kecil untuk pastikan teks `<script>` dipapar sebagai teks, bukan HTML.
+- Tambah ujian frontend menyeluruh untuk pastikan teks `<script>` dipapar sebagai teks dalam semua modul lama.
 
 ## P2 - Data dan Repo Hygiene
 
 ### Runtime Data dan Backup
 
-Masalah:
+Status v0.10.2:
 
-- Backup runtime sudah ada, tetapi restore/import belum ada.
-- Log runtime boleh membesar jika automation berjalan lama.
+- Restore CLI sudah ada dengan dry-run default, validasi JSON, penolakan secret, dan backup `runtime-pre-restore-*` sebelum apply.
+- Panduan operasi disimpan di `docs/RESTORE_RUNTIME.md`.
 
 Cadangan:
 
@@ -109,11 +112,13 @@ Cadangan:
 
 ### Mobile Navigation
 
-Status:
+Status v0.10.2:
 
-- v0.9.6 sudah tukar menu mobile kepada horizontal compact nav supaya content utama tidak turun terlalu jauh.
+- Mobile header, navigation drawer dan bottom navigation sudah ditambah.
+- Paparan mobile menunjukkan ringkasan Pending/Blocked dan menyediakan tap target yang lebih jelas.
+- Halaman Jana Story mempunyai panduan tiga langkah serta mod ringkas untuk input utama sahaja.
 
 Cadangan seterusnya:
 
-- Pada skrin kecil, sidebar boleh jadi collapsible atau bottom nav.
-- Matlamat: lebih ruang untuk form Jana Story dan Jadual Threads.
+- Jalankan usability review pada telefon sebenar selepas deploy hosting.
+- Pertimbangkan pilihan susunan bottom navigation mengikut menu paling kerap digunakan.

@@ -27,7 +27,13 @@ jobs:
         run: npm run qa:production
 
       - name: Static server hardening QA
-        run: node scripts/qa-static-server.mjs
+        run: npm run qa:static
+
+      - name: UI enhancement QA
+        run: npm run qa:ui
+
+      - name: Runtime restore QA
+        run: npm run qa:restore
 
       - name: Story audit
         run: npm run audit:stories
