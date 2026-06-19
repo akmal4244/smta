@@ -52,6 +52,10 @@ async function patchAiServer() {
   );
 
   source = source.replaceAll('`http://${host}:${port}`', "extensionBridgeUrl");
+  source = source.replace(
+    "const extensionBridgeUrl = publicBaseUrl || extensionBridgeUrl;",
+    'const extensionBridgeUrl = publicBaseUrl || `http://${host}:${port}`;',
+  );
   if (!source.includes("bridgeUrl: extensionBridgeUrl")) throw new Error("Bridge URL public patch gagal.");
 
   source = replaceRegexRequired(
