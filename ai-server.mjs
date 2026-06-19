@@ -48,6 +48,18 @@ replaceText(
 );
 
 replaceText(
+  "Product Audit quality reasons",
+  '    if (quality.status === "review") post.qualityReasons = quality.reasons;',
+  "    post.qualityReasons = quality.reasons;",
+);
+
+replaceText(
+  "Product Audit story-run quality metadata",
+  '      version.productTitle = productTitle;\n      version.productCategory = productCategory;\n      version.updatedAt = `${malaysiaNow()} GMT+8`;',
+  '      const updatedPost = posts[number - 1];\n      version.productTitle = productTitle;\n      version.productCategory = productCategory;\n      version.productVerified = true;\n      version.productIntelEvidence = "manual_verified";\n      version.productIntelConfidence = 100;\n      version.qualityStatus = updatedPost?.qualityStatus || version.qualityStatus;\n      version.qualityScore = updatedPost?.qualityScore ?? version.qualityScore;\n      version.qualityChecks = updatedPost?.qualityChecks || version.qualityChecks;\n      version.qualityReasons = updatedPost?.qualityReasons || [];\n      if (version.qualityStatus === "review") version.status = "review";\n      version.updatedAt = `${malaysiaNow()} GMT+8`;',
+);
+
+replaceText(
   "proof declaration",
   "  const autoCompletePastSlots = nativeScheduleMode || options.autoCompletePastSlots === true;",
   [
@@ -144,6 +156,7 @@ for (const legacyPattern of [
   "!autoCompletePastSlots ||",
   "time <= nowMs && autoCompletePastSlots",
   "publicBaseUrl || extensionBridgeUrl",
+  'if (quality.status === "review") post.qualityReasons = quality.reasons;',
 ]) {
   if (source.includes(legacyPattern)) {
     throw new Error(`ThreadsMe continuity patch masih meninggalkan pola lama: ${legacyPattern}`);
