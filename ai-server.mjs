@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { access, appendFile, copyFile, mkdir, readFile, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { access, appendFile, copyFile, mkdir, readFile, readdir, realpath, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
@@ -34,6 +34,8 @@ const port = Number(process.env.PORT || process.env.THREADSME_AI_PORT || process
 const host = process.env.THREADSME_AI_HOST || process.env.HOST || "127.0.0.1";
 const publicBaseUrl = String(process.env.THREADSME_PUBLIC_URL || "").replace(/\/+$/, "");
 const forceHttps = process.env.THREADSME_FORCE_HTTPS === "true";
+const extensionBridgeUrl = publicBaseUrl || extensionBridgeUrl;
+const secureSessionCookie = forceHttps || /^https:\/\//i.test(publicBaseUrl);
 const deepseekUrl = "https://api.deepseek.com/chat/completions";
 const threadsGraphUrl = "https://graph.threads.net/v1.0";
 const threadsScheduleLimit = 25;
@@ -75,13 +77,28 @@ const staticMime = new Map([
   [".svg", "image/svg+xml; charset=utf-8"],
   [".zip", "application/zip"],
 ]);
-const blockedStaticRuntimeFiles = new Set([
-  "status.json",
-  "story-runs.json",
-  "threads_flexi_marble_schedule.json",
-  "publish-log.json",
-  "product-intel-cache.json",
+const publicStaticRootFiles = new Set([
+  "index.html",
+  "styles.css",
+  "app.js",
+  "config.js",
+  "threadsme-extension.zip",
+  "favicon.ico",
+  "manifest.webmanifest",
+  "robots.txt",
+  "service-worker.js",
 ]);
+
+function staticPublicPath(filePath) {
+  return path.relative(here, filePath).split(path.sep).join("/");
+}
+
+function isPublicStaticPath(relativePath) {
+  if (!relativePath || relativePath === ".") return false;
+  const segments = relativePath.split("/");
+  if (segments.some((segment) => !segment || segment.startsWith("."))) return false;
+  return publicStaticRootFiles.has(relativePath) || relativePath.startsWith("assets/");
+}
 const postingTimePresets = {
   1: ["10:00"],
   3: ["09:30", "12:30", "20:30"],
@@ -286,7 +303,7 @@ function defaultExtensionBridgeConfig() {
     autopilot: true,
     targetScheduledCount: threadsScheduleLimit,
     token: randomBytes(24).toString("hex"),
-    bridgeUrl: `http://${host}:${port}`,
+    bridgeUrl: extensionBridgeUrl,
     lastSyncAt: "",
     lastAccount: "",
     threadsConnected: false,
@@ -308,7 +325,7 @@ async function readExtensionBridgeConfig() {
   config.enabled = config.enabled !== false;
   config.autopilot = config.autopilot !== false;
   config.targetScheduledCount = Math.max(1, Math.min(Number(config.targetScheduledCount || threadsScheduleLimit), threadsScheduleLimit));
-  config.bridgeUrl = `http://${host}:${port}`;
+  config.bridgeUrl = extensionBridgeUrl;
   config.lastNativeScheduledCount = Math.max(0, Number(config.lastNativeScheduledCount || 0));
   config.threadsConnected = Boolean(config.threadsConnected);
   config.nativeScheduledNumbers = uniqueSortedNumbers(config.nativeScheduledNumbers);
@@ -322,7 +339,7 @@ async function writeExtensionBridgeConfig(config) {
   const next = {
     ...current,
     ...config,
-    bridgeUrl: `http://${host}:${port}`,
+    bridgeUrl: extensionBridgeUrl,
     targetScheduledCount: Math.max(1, Math.min(Number(config.targetScheduledCount || current.targetScheduledCount || threadsScheduleLimit), threadsScheduleLimit)),
     nativeScheduledNumbers: uniqueSortedNumbers(config.nativeScheduledNumbers || current.nativeScheduledNumbers),
     lastProofs: Array.isArray(config.lastProofs) ? config.lastProofs.slice(-50) : current.lastProofs,
@@ -344,7 +361,7 @@ function sanitizeExtensionBridgeConfig(config, { includeToken = false } = {}) {
     enabled: Boolean(config.enabled),
     autopilot: Boolean(config.autopilot),
     targetScheduledCount: config.targetScheduledCount || threadsScheduleLimit,
-    bridgeUrl: config.bridgeUrl || `http://${host}:${port}`,
+    bridgeUrl: config.bridgeUrl || extensionBridgeUrl,
     token: includeToken ? config.token : undefined,
     tokenPreview: config.token ? `${String(config.token).slice(0, 6)}...${String(config.token).slice(-4)}` : "",
     lastSyncAt: config.lastSyncAt || "",
@@ -503,13 +520,17 @@ async function destroyAdminSession(req) {
   await writeAdminSessions(sessions.filter((session) => session.token !== token));
 }
 
+function sessionCookieSecurity() {
+  return secureSessionCookie ? "; Secure" : "";
+}
+
 function authCookie(session) {
   const maxAge = Math.floor(adminSessionTtlMs / 1000);
-  return `tm_session=${encodeURIComponent(session.token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}`;
+  return `tm_session=${encodeURIComponent(session.token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${sessionCookieSecurity()}`;
 }
 
 function expiredAuthCookie() {
-  return "tm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0";
+  return `tm_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0${sessionCookieSecurity()}`;
 }
 
 function applyCors(req, res, pathname = "") {
@@ -1261,7 +1282,7 @@ function buildScheduleSlots(existingPosts, count, postsPerDay) {
 function buildAutomatedStatus(scheduleData, statusData, nowMs = Date.now(), options = {}) {
   const posts = Array.isArray(scheduleData.posts) ? scheduleData.posts : [];
   const nativeScheduleMode = Boolean(options.nativeScheduleMode || statusData.nativeScheduleMode);
-  const autoCompletePastSlots = nativeScheduleMode || options.autoCompletePastSlots !== false;
+  const autoCompletePastSlots = nativeScheduleMode || options.autoCompletePastSlots === true;
   const publisher = options.publisher || statusData.publisher || {};
   const previousScheduled = uniqueSortedNumbers(statusData.scheduled);
   const previousPosted = uniqueSortedNumbers(statusData.posted);
@@ -2004,14 +2025,64 @@ function redirectToHttpsIfNeeded(req, res) {
 }
 
 function resolveStaticRequest(pathname) {
-  const normalized = decodeURIComponent(pathname || "/");
+  let normalized = "";
+  try {
+    normalized = decodeURIComponent(pathname || "/");
+  } catch {
+    return null;
+  }
   const cleanPath = normalized.replace(/^\/threadsme(?=\/|$)/i, "") || "/";
   const relativePath = cleanPath.endsWith("/") ? `${cleanPath}index.html` : cleanPath;
   const target = path.resolve(here, `.${relativePath}`);
   const relative = path.relative(here, target);
   if (relative.startsWith("..") || path.isAbsolute(relative)) return null;
-  if (blockedStaticRuntimeFiles.has(path.basename(target))) return null;
+  if (!isPublicStaticPath(staticPublicPath(target))) return null;
   return target;
+}
+
+function staticSecurityHeaders(req) {
+  const connectSources = new Set([
+    "'self'",
+    "http://127.0.0.1:8788",
+    "http://localhost:8788",
+  ]);
+  if (publicBaseUrl) {
+    try {
+      connectSources.add(new URL(publicBaseUrl).origin);
+    } catch {
+      // Invalid public URL is ignored here and remains visible through ops configuration.
+    }
+  }
+  const headers = {
+    "x-content-type-options": "nosniff",
+    "referrer-policy": "same-origin",
+    "x-frame-options": "DENY",
+    "x-robots-tag": "noindex, nofollow, noarchive",
+    "permissions-policy": "camera=(), microphone=(), geolocation=()",
+    "content-security-policy": [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https: http:",
+      `connect-src ${[...connectSources].join(" ")}`,
+      "object-src 'none'",
+      "base-uri 'self'",
+      "frame-ancestors 'none'",
+      "form-action 'self'",
+    ].join("; "),
+  };
+  const forwardedProto = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim().toLowerCase();
+  if (forwardedProto === "https" || secureSessionCookie) {
+    headers["strict-transport-security"] = "max-age=31536000; includeSubDomains";
+  }
+  return headers;
+}
+
+function staticCacheControl(filePath, url) {
+  const relative = staticPublicPath(filePath);
+  if (relative === "index.html" || relative === "config.js") return "no-store";
+  if (url.searchParams.has("v")) return "public, max-age=31536000, immutable";
+  return "public, max-age=300, must-revalidate";
 }
 
 async function serveStatic(req, res, url) {
@@ -2026,33 +2097,27 @@ async function serveStatic(req, res, url) {
     return true;
   }
 
-  let filePath = target;
   try {
-    const info = await stat(filePath);
-    if (info.isDirectory()) filePath = path.join(filePath, "index.html");
+    const info = await stat(target);
+    if (!info.isFile()) throw new Error("Not a file");
+    const canonicalPath = await realpath(target);
+    const canonicalRelative = path.relative(here, canonicalPath);
+    if (canonicalRelative.startsWith("..") || path.isAbsolute(canonicalRelative) || !isPublicStaticPath(staticPublicPath(canonicalPath))) {
+      sendJson(res, 404, { ok: false, error: "Not found" });
+      return true;
+    }
+    const body = req.method === "HEAD" ? null : await readFile(canonicalPath);
+    const ext = path.extname(canonicalPath).toLowerCase();
+    res.writeHead(200, {
+      ...staticSecurityHeaders(req),
+      "content-type": staticMime.get(ext) || "application/octet-stream",
+      "cache-control": staticCacheControl(canonicalPath, url),
+      "last-modified": info.mtime.toUTCString(),
+    });
+    res.end(body || undefined);
   } catch {
-    filePath = path.join(here, "index.html");
-  }
-
-  const relative = path.relative(here, filePath);
-  if (relative.startsWith("..") || path.isAbsolute(relative) || blockedStaticRuntimeFiles.has(path.basename(filePath))) {
     sendJson(res, 404, { ok: false, error: "Not found" });
-    return true;
   }
-
-  const body = await readFile(filePath);
-  const ext = path.extname(filePath).toLowerCase();
-  res.writeHead(200, {
-    "content-type": staticMime.get(ext) || "application/octet-stream",
-    "cache-control": ext === ".html" ? "no-store" : "public, max-age=300",
-    "x-content-type-options": "nosniff",
-    "referrer-policy": "same-origin",
-    "x-frame-options": "DENY",
-    "permissions-policy": "camera=(), microphone=(), geolocation=()",
-    "content-security-policy":
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; connect-src 'self' http://127.0.0.1:8788 http://localhost:8788; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
-  });
-  res.end(req.method === "HEAD" ? undefined : body);
   return true;
 }
 
@@ -4529,8 +4594,8 @@ async function updateProductAudit(input) {
       runTouched = true;
     }
     if (runTouched) {
-      run.productTitle = run.productTitle || productTitle;
-      run.productCategory = run.productCategory || productCategory;
+      run.productTitle = productTitle;
+      run.productCategory = productCategory;
       run.productAuditAt = `${malaysiaNow()} GMT+8`;
     }
   }
@@ -4611,8 +4676,8 @@ async function regenerateProductAudit(input) {
       runTouched = true;
     }
     if (runTouched) {
-      run.productTitle = run.productTitle || productTitle;
-      run.productCategory = run.productCategory || productCategory;
+      run.productTitle = productTitle;
+      run.productCategory = productCategory;
       run.regeneratedAt = `${malaysiaNow()} GMT+8`;
     }
   }
@@ -4647,8 +4712,8 @@ function syncRegeneratedPostToRuns(runs, post, number) {
       runTouched = true;
     }
     if (runTouched) {
-      run.productTitle = run.productTitle || post.productTitle;
-      run.productCategory = run.productCategory || post.productCategory;
+      if (post.productTitle) run.productTitle = post.productTitle;
+      if (post.productCategory) run.productCategory = post.productCategory;
       run.autoRegeneratedAt = `${malaysiaNow()} GMT+8`;
     }
   }
@@ -5864,7 +5929,7 @@ async function buildRuntimeBackup() {
   ]);
   return {
     type: "threadsme-runtime-backup",
-    version: "0.9.6",
+    version: "0.10.3",
     createdAt: `${malaysiaNow()} GMT+8`,
     files: {
       schedule: path.relative(workspaceRoot, scheduleFile),
@@ -6045,7 +6110,7 @@ async function updatePublisherConfig(input) {
 
 const server = createServer(async (req, res) => {
   try {
-    const url = new URL(req.url || "/", `http://${host}:${port}`);
+    const url = new URL(req.url || "/", extensionBridgeUrl);
     if (redirectToHttpsIfNeeded(req, res)) return;
 
     const corsAllowed = applyCors(req, res, url.pathname);
@@ -6342,7 +6407,7 @@ const server = createServer(async (req, res) => {
       method: req.method || "",
       path: (() => {
         try {
-          return new URL(req.url || "/", `http://${host}:${port}`).pathname;
+          return new URL(req.url || "/", extensionBridgeUrl).pathname;
         } catch {
           return req.url || "";
         }
