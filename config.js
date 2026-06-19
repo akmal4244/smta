@@ -14,5 +14,6 @@
         : useProductionData
           ? productionApi
           : localApi,
+    uiVersion: "0.10.2",
   };
 })();
