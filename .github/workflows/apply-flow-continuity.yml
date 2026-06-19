@@ -48,3 +48,5 @@ jobs:
           git add ai-server.mjs config.js README.md scripts/restore-runtime.mjs threadsme-extension/src/content.js
           git commit -m "fix: connect ThreadsMe flows end to end"
           git push origin HEAD:codex/flow-continuity-audit-20260619
+
+# Helper workflow is intentionally scoped to the audit branch only.
