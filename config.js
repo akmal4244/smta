@@ -16,4 +16,8 @@
           : localApi,
     uiVersion: "0.10.2",
   };
+
+  const uiStyles = document.createElement("style");
+  uiStyles.textContent = '@import url("./assets/ui-enhancements.css?v=2");';
+  document.head.append(uiStyles);
 })();
