@@ -58,15 +58,4 @@ jobs:
           node-version: "22"
 
       - name: End-to-end flow continuity QA
-        run: |
-          set -o pipefail
-          npm run qa:flow 2>&1 | tee flow-continuity.log
-
-      - name: Upload flow diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: flow-continuity-log
-          path: flow-continuity.log
-          if-no-files-found: error
-          retention-days: 3
+        run: npm run qa:flow
