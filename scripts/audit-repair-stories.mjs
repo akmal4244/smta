@@ -10,8 +10,8 @@ const scheduleFile = process.env.THREADSME_SCHEDULE_FILE || path.join(runtimeRoo
 const storyRunsFile = process.env.THREADSME_STORY_RUNS_FILE || path.join(runtimeRoot, "story-runs.json");
 const statusFile = process.env.THREADSME_STATUS_FILE || path.join(runtimeRoot, "status.json");
 const apply = process.argv.includes("--apply");
-const targetMin = 250;
-const targetMax = 295;
+const targetMin = 170;
+const targetMax = 260;
 const hardMax = 300;
 const shortFillers = [
   " Benda kecil pun cukup untuk mula rasa lebih teratur.",
@@ -20,6 +20,77 @@ const shortFillers = [
   " Simple, tapi kesannya tetap terasa.",
 ];
 const danglingPhraseRe = /(sebelum mula tampal|boleh survey|boleh tengok|kalau nak|boleh check|boleh mula)$/i;
+const danglingEndRe = /\b(?:tidak|mahu|cuma|tapi|dalam|atas|terlalu|perlu|bukan|yang|untuk|dengan|bila|kalau|supaya|seperti|macam|boleh|ingin|nak|tanpa|kerana|sebab|pada|dan|atau|di|ke|dari|sedang|waktu|daripada)[.!?]?$/i;
+const danglingTailRe = /(?:tanpa\s+rasa|tak\s+perlu|kalau\s+sedang|kapasiti\s+dan|masakan\s+biasa,\s+dan|makan\s+dengan|masa\s+memasak\s+terlalu|nampak\s+cantik\s+atas|nasi\s+panas,\s+telur)[.!?]?$/i;
+
+const uniqueTwists = {
+  marble: {
+    main: [
+      " Paling terasa bila balik lewat dan ruang TV terus nampak lebih tenang.",
+      " Perubahan kecil begini buat rumah rasa lebih siap tanpa projek besar.",
+      " Bila satu sudut ada fokus, rumah terasa kurang kosong.",
+      " Yang kita mahu cuma ruang yang nampak dijaga setiap hari.",
+      " Kadang latar dinding yang kemas cukup untuk ubah mood rumah.",
+    ],
+    reply1: [
+      " Mula dari dinding yang paling selalu dipandang pun sudah cukup.",
+      " Bila bajet kecil, perubahan yang fokus rasa lebih masuk akal.",
+      " Rumah terasa lebih milik sendiri bila satu sudut mula hidup.",
+      " Tak perlu tunggu semua sempurna untuk rasa lega sedikit.",
+      " Benda begini sesuai untuk orang yang nak mula perlahan-lahan.",
+    ],
+    reply2: [
+      " Pilih corak yang kena dengan warna ruang supaya hasilnya nampak natural.",
+      " Semak ukuran dulu, kemudian mula dari satu panel yang paling selamat.",
+      " Sesuai kalau nak feature wall kecil tanpa renovasi berat.",
+      " Kalau takut berlebihan, cuba satu bahagian dahulu.",
+      " Simpan dulu kalau sedang kumpul idea untuk dinding rumah.",
+    ],
+  },
+  organizer: {
+    main: [
+      " Yang paling terasa ialah meja tidak lagi jadi tempat semua benda berkumpul.",
+      " Bila barang kecil ada rumah sendiri, kepala pun kurang serabut.",
+      " Kadang tenang itu bermula dari satu sudut yang tidak lagi penuh.",
+      " Rutin kemas jadi ringan bila sistemnya mudah diikut.",
+      " Ruang kecil pun boleh rasa lega bila barang tidak berselerak.",
+    ],
+    reply1: [
+      " Aku suka mula dari barang yang selalu hilang dulu.",
+      " Bila remote dan cable ada tempat, malam terasa kurang bising.",
+      " Kemas jadi lebih realistik bila tidak perlu fikir banyak.",
+      " Satu organizer kecil pun boleh ubah cara kita guna ruang.",
+      " Yang penting, susunan tu kena dengan rutin rumah sendiri.",
+    ],
+    reply2: [
+      " Semak saiz dulu supaya muat dengan meja atau sudut rumah.",
+      " Sesuai kalau mahu mula dari barang harian yang paling kerap bergerak.",
+      " Cuba satu sudut dulu dan tengok sama ada rutin jadi lebih mudah.",
+      " Pilih ikut jumlah barang, bukan sekadar sebab nampak cantik.",
+      " Kalau meja selalu penuh, ini antara cara mula yang ringan.",
+    ],
+  },
+  pressure_cooker: {
+    main: [
+      " Paling terasa bila lauk rebusan mengambil masa lebih lama daripada tenaga yang kita ada.",
+      " Bila dapur lebih cepat siap, malam di rumah terasa kurang kelam-kabut.",
+      " Kadang kita masih mahu makanan rumah, cuma tidak larat menunggu lama.",
+      " Rutin dapur jadi ringan bila kerja paling lama boleh dipendekkan.",
+    ],
+    reply1: [
+      " Bila lauk cepat empuk, kita ada ruang untuk mandi dan rehat dulu.",
+      " Alat yang praktikal buat masak di rumah rasa lebih mampu diteruskan.",
+      " Untuk hari kerja yang padat, bantuan kecil di dapur memang terasa.",
+      " Meal prep jadi lebih masuk akal bila proses rebusan tidak makan malam penuh.",
+    ],
+    reply2: [
+      " Semak kapasiti dan cara guna supaya kena dengan rutin dapur sendiri.",
+      " Sesuai untuk sup, rebusan, lauk berkuah atau meal prep keluarga.",
+      " Pilih ikut saiz keluarga dan jenis lauk yang selalu dimasak.",
+      " Kalau selalu menunggu lauk empuk, ini memang wajar disurvey dahulu.",
+    ],
+  },
+};
 
 const productConfigs = {
   marble: {
@@ -117,7 +188,7 @@ const productConfigs = {
   pressure_cooker: {
     label: "DESSINI Italy Pressure Cooker",
     category: "periuk tekanan, memasak cepat, dapur keluarga",
-    links: ["https://s.shopee.com.my/5q5mTxqz8i"],
+    links: ["https://s.shopee.com.my/5q5mTxqz8i", "https://s.shopee.com.my/gNr3WWiCB"],
     terms: ["pressure", "cooker", "periuk", "tekanan", "dapur", "masak", "sup"],
     forbidden: [
       /sambal|nyet|khairulaming|pedas|telur\s+goreng|nasi\s+panas\s+dengan\s+sambal/i,
@@ -214,6 +285,35 @@ const productConfigs = {
         main: "Kadang hadiah paling kita ingat bukan yang paling besar, tapi yang terasa ada makna. Barang boleh rosak, trend boleh hilang, tapi sesuatu yang disimpan lama rasa macam ada cerita sendiri.",
         reply1: "Aku suka hadiah yang tak terlalu bising tapi tetap nampak dihargai. Bila bentuknya kecil dan kemas, orang boleh simpan, bukan sekadar guna sekejap lepas tu lupa di laci.",
         reply2: "POH KONG 999.9 Gold Bar Bunga Raya ni boleh dipertimbangkan untuk hadiah bernilai atau simpanan kecil. Baca detail produk dan harga semasa dulu sebelum beli.",
+      },
+    ],
+  },
+  organizer: {
+    label: "MommyHana Excel Hana",
+    category: "rak serbaguna dan organizer rumah untuk susun barang harian",
+    links: ["https://s.shopee.com.my/9KfjNdntZN"],
+    terms: ["organizer", "rak", "susun", "barang", "kemas", "meja", "ruang", "simpan"],
+    forbidden: [/\bsambal\b|nyet|\bpedas\b|\blauk\b|nasi\s+panas|marble|wallpaper|\bgold\b|\bemas\b|24k|pressure\s*cooker|periuk\s+tekanan/i],
+    fillers: [
+      " Bila barang ada tempat sendiri, rumah rasa kurang bising di mata.",
+      " Kemas jadi lebih mudah bila sistemnya dekat dengan rutin harian.",
+      " Tak perlu ubah satu rumah, cukup mula dari sudut yang selalu berselerak.",
+    ],
+    reply2Fillers: [
+      " Sesuai untuk meja, ruang kecil atau sudut barang harian yang selalu berulang.",
+      " Semak saiz dan fungsi dulu supaya kena dengan ruang rumah sendiri.",
+      " Kalau nak mula kemas perlahan-lahan, satu organizer pun boleh jadi permulaan.",
+    ],
+    scenes: [
+      {
+        main: "Balik kerja, rumah nampak okay dari jauh. Tapi bila duduk, baru nampak remote, charger dan bil bercampur atas meja. Benda kecil macam tu buat kepala rasa bising walaupun rumah tak bersepah sangat.",
+        reply1: "Aku sedar masalah aku bukan kurang rajin kemas. Barang tu cuma tak ada tempat tetap. Bila setiap benda ada ruang sendiri, meja rasa lapang dan aku tak ulang kemas benda sama setiap malam.",
+        reply2: "MommyHana Excel Hana sesuai untuk mula susun sudut kecil dulu. Letak barang harian dekat satu tempat, ruang jadi kemas dan mata pun kurang penat.",
+      },
+      {
+        main: "Kadang rumah bukan perlukan makeover besar. Rumah cuma perlukan satu sistem kecil yang kita sanggup ikut setiap hari. Bila terlalu rumit, kita berhenti. Bila mudah, kemas jadi sebahagian rutin.",
+        reply1: "Aku mula dari barang yang selalu bergerak: remote, buku kecil, cable dan kunci. Bila semua ada tempat, rumah rasa lebih stabil. Rutin kecil, tapi kesannya terasa setiap hari.",
+        reply2: "Excel Hana sesuai untuk yang nak kemas tanpa rasa terbeban. Mulakan dengan satu sudut kecil, tengok sama ada ia kena dengan rutin rumah sendiri.",
       },
     ],
   },
@@ -434,6 +534,7 @@ function oneLine(value) {
     .replace(/\btakde\b/gi, "tak ada")
     .replace(/\btgok\b/gi, "tengok")
     .replace(/\bmmg\b/gi, "memang")
+    .replace(/\.{2,}/g, ".")
     .trim();
 }
 
@@ -459,6 +560,42 @@ function appendSentence(base, sentence) {
   return `${body}${/[.!?]$/.test(body) ? " " : ". "}${extra}`;
 }
 
+function hasDanglingEnding(value) {
+  const body = oneLine(value).replace(/https?:\/\/\S+/g, "").trim();
+  if (!body) return false;
+  if (/\b(?:ada|cukup|bagi|ada banyak|masih ada)\s+rasa\.$/i.test(body)) return false;
+  return danglingPhraseRe.test(body) || danglingEndRe.test(body) || danglingTailRe.test(body);
+}
+
+function stripLastSentence(value) {
+  const body = oneLine(value);
+  const stripped = body.replace(/\s+[^.!?]*[.!?]$/u, "").trim();
+  if (stripped && stripped.length >= 120) return /[.!?]$/.test(stripped) ? stripped : `${stripped}.`;
+  const clause = body.replace(/(?:,\s*|\s+)[^,.!?]{0,90}[.!?]$/u, ".").trim();
+  return clause || body;
+}
+
+function repairDanglingEnding(value, fillers, seed = 0, max = targetMax, min = targetMin) {
+  let output = oneLine(value);
+  let guard = 0;
+  while (hasDanglingEnding(output) && guard < 4) {
+    const stripped = stripLastSentence(output);
+    if (stripped && stripped.length < output.length) output = stripped;
+    const bank = [...fillers, ...shortFillers];
+    for (let index = 0; output.length < min && index < bank.length; index += 1) {
+      const candidate = bank[(seed + guard + index) % bank.length] || "";
+      const next = appendSentence(output, candidate);
+      if (next.length <= max && !hasDanglingEnding(next)) {
+        output = next;
+        break;
+      }
+    }
+    if (!hasDanglingEnding(output)) break;
+    guard += 1;
+  }
+  return output;
+}
+
 function fitBody(text, fillers, seed = 0, max = targetMax, min = targetMin) {
   let output = limitAtWord(text, max);
   const mergedFillers = [...fillers, ...shortFillers];
@@ -474,7 +611,8 @@ function fitBody(text, fillers, seed = 0, max = targetMax, min = targetMin) {
     else break;
     guard += 1;
   }
-  return limitAtWord(output, max);
+  output = limitAtWord(output, max);
+  return repairDanglingEnding(output, mergedFillers, seed, max, min);
 }
 
 function attachLink(body, link, fillers, seed = 0) {
@@ -501,9 +639,10 @@ function inferKind(post) {
   if (/7vdqsookf3|flexi\s*marble|marble|dinding|wallpaper/.test(text)) return "marble";
   if (/5q5lqsxkro|fairy|dawai|string\s*light/.test(text)) return "fairy_light";
   if (/902ocbnlhl|solar|outdoor|street|lampu jalan/.test(text)) return "solar";
-  if (/5q5mtxqz8i|pressure\s*cooker|periuk\s+tekanan|dessini/.test(text)) return "pressure_cooker";
+  if (/5q5mtxqz8i|gnr3wwicb|pressure\s*cooker|periuk\s+tekanan|dessini/.test(text)) return "pressure_cooker";
   if (/2g8lfhbywq|sambal|nyet|khairulaming/.test(text)) return "sambal";
   if (/9zvmgggvg7|poh\s*kong|gold|emas|24k|999/.test(text)) return "gold";
+  if (/9kfjndntzn|mommyhana|excel\s*hana|organizer|storage|rak|kotak|susun|barang\s+harian/.test(text)) return "organizer";
   return "";
 }
 
@@ -563,7 +702,7 @@ function auditPost(post, number) {
   if (/produk ni:\s|check:\s|boleh\.\s|Jom\.\s/i.test(allText)) issues.push("awkward_sales_phrase");
   for (const text of [post.main, post.reply1, post.reply2]) {
     const body = String(text || "").replace(/https?:\/\/\S+/g, "").trim();
-    if (danglingPhraseRe.test(body)) issues.push("dangling_phrase");
+    if (hasDanglingEnding(body)) issues.push("dangling_phrase");
   }
   if (!/(aku|kita|kadang|bila|pernah|rasa|penat|hari|malam|pagi|balik|dapur|rumah|simpan)/i.test(allText)) {
     issues.push("weak_story_voice");
@@ -594,6 +733,58 @@ function buildStory(post, number) {
   };
 }
 
+function bodyWithoutLink(value) {
+  return oneLine(String(value || "").replace(/https?:\/\/\S+/g, ""));
+}
+
+function uniqueTwist(kind, part, number) {
+  const bank = uniqueTwists[kind]?.[part] || uniqueTwists.pressure_cooker[part] || shortFillers;
+  return bank[(number * 7 + part.length) % bank.length] || "";
+}
+
+function applyUniqueVariant(post, number) {
+  const kind = inferKind(post) || "marble";
+  const config = productConfigs[kind] || productConfigs.marble;
+  const link = expectedLink(post, kind);
+  const mainBase = stripLastSentence(post.main || "");
+  const reply1Base = stripLastSentence(post.reply1 || "");
+  const reply2Base = stripLastSentence(bodyWithoutLink(post.reply2 || ""));
+  post.main = fitBody(appendSentence(mainBase, uniqueTwist(kind, "main", number)), config.fillers, number + 13);
+  post.reply1 = fitBody(appendSentence(reply1Base, uniqueTwist(kind, "reply1", number)), config.fillers, number + 17);
+  post.reply2 = attachLink(
+    appendSentence(reply2Base, uniqueTwist(kind, "reply2", number)),
+    link,
+    config.reply2Fillers,
+    number + 19,
+  );
+  post.productTitle = kind === "sambal" && /180g/i.test(String(post.productTitle || "")) ? "Sambal Nyet Berapi by Khairulaming 180g" : config.label;
+  post.productCategory = config.category;
+  post.affiliateLink = link;
+  const quality = qualityChecks(post);
+  post.qualityStatus = quality.status;
+  post.qualityScore = quality.score;
+  post.qualityChecks = quality.checks;
+  post.qualityReasons = quality.reasons;
+  post.threadLengthTarget = {
+    min: targetMin,
+    max: targetMax,
+    hardMax,
+    passed: quality.lengths.every((length) => length >= targetMin && length <= targetMax),
+    lengths: quality.lengths,
+  };
+  return post;
+}
+
+function duplicateNumbers(posts) {
+  const trioMap = new Map();
+  posts.forEach((post, index) => {
+    const trio = [post.main, post.reply1, post.reply2].map(oneLine).join("\n---\n");
+    if (!trioMap.has(trio)) trioMap.set(trio, []);
+    trioMap.get(trio).push(index + 1);
+  });
+  return [...trioMap.values()].filter((numbers) => numbers.length > 1).flatMap((numbers) => numbers.slice(1));
+}
+
 function qualityChecks(post) {
   const lengths = [post.main, post.reply1, post.reply2].map((part) => String(part || "").length);
   const report = auditPost(post, 0);
@@ -603,7 +794,7 @@ function qualityChecks(post) {
     reasons: report.issues,
     checks: [
       { key: "length", label: `Setiap post <=${hardMax} aksara`, passed: lengths.every((length) => length > 0 && length <= hardMax) },
-      { key: "target_length", label: `Manfaatkan ruang ${targetMin}-${targetMax} aksara`, passed: lengths.every((length) => length >= targetMin && length <= targetMax) },
+      { key: "target_length", label: `Panjang natural ${targetMin}-${targetMax} aksara`, passed: lengths.every((length) => length >= targetMin && length <= targetMax) },
       { key: "affiliate", label: "Reply 2 tamat dengan link affiliate", passed: Boolean(extractLastLink(post.reply2)) },
       { key: "link_product_match", label: "Link affiliate sepadan dengan produk dan story", passed: !report.issues.some((issue) => issue.includes("link") || issue.includes("leaks")) },
       { key: "relevance", label: "Story relevan dengan produk", passed: !report.issues.includes("story_missing_product_terms") },
@@ -728,6 +919,21 @@ async function main() {
         lengths: quality.lengths,
       };
       updatedNumbers.push(item.number);
+    }
+
+    let deDupeGuard = 0;
+    while (deDupeGuard < 4) {
+      const duplicates = duplicateNumbers(posts);
+      if (!duplicates.length) break;
+      for (const number of duplicates) {
+        const post = posts[number - 1];
+        if (!post) continue;
+        applyUniqueVariant(post, number + deDupeGuard * 101);
+        post.storyLogicAuditAt = stampText;
+        post.storyLogicAuditNote = "Autopilot repair: variasi story diubah supaya tidak duplicate.";
+        if (!updatedNumbers.includes(number)) updatedNumbers.push(number);
+      }
+      deDupeGuard += 1;
     }
 
     syncRuns(runs, posts, updatedNumbers, stampText);

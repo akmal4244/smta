@@ -1084,7 +1084,7 @@ function makePostCard(label, text) {
   article.className = "thread-post";
   const length = text.length;
   const header = document.createElement("header");
-  header.append(makeTextElement("strong", "", label), makeTextElement("span", "", `${length}/300 | target 250-295`));
+  header.append(makeTextElement("strong", "", label), makeTextElement("span", "", `${length}/300 | target 170-260`));
   const copy = document.createElement("p");
   copy.textContent = text;
   article.append(header, copy);
@@ -1102,7 +1102,7 @@ function renderPreview() {
   els.previewBadge.className = `badge ${status}`;
   els.previewSlot.textContent = formatSlot(post.slot);
   els.previewTimezone.textContent = state.timezone;
-  els.previewLengths.textContent = `${lengths.join(" / ")} | target 250-295`;
+  els.previewLengths.textContent = `${lengths.join(" / ")} | target 170-260`;
   els.previewStatusText.textContent = statusDetail(status);
   const affiliateUrl = post.affiliateLink || state.affiliateLink;
   if (affiliateUrl) {

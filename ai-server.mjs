@@ -41,8 +41,8 @@ const threadsScheduleLimit = 25;
 const threadsApiDailyPublishLimit = 250;
 const maxPostingPerDay = 25;
 const threadPostMaxChars = 300;
-const threadPostTargetMinChars = 250;
-const threadPostTargetMaxChars = 295;
+const threadPostTargetMinChars = 170;
+const threadPostTargetMaxChars = 260;
 const publisherPreflightEnabled = process.env.THREADSME_PUBLISH_PREFLIGHT !== "false";
 const publisherPreflightAiEnabled = process.env.THREADSME_PUBLISH_PREFLIGHT_AI !== "false";
 const publisherPreflightMinScore = Math.max(70, Math.min(Number(process.env.THREADSME_PUBLISH_PREFLIGHT_MIN_SCORE || 82), 95));
@@ -975,7 +975,7 @@ function buildInferredProductCandidate(post = {}, run = {}, version = {}) {
 
 function knownAffiliateRecoveredProduct(affiliateLink) {
   const affiliate = String(affiliateLink || "");
-  if (/5q5mTxqz8i/i.test(affiliate)) {
+  if (/5q5mTxqz8i|gNr3WWiCB/i.test(affiliate)) {
     return createRecoveredProduct(
       "DESSINI Italy Pressure Cooker",
       "periuk tekanan, memasak cepat, dapur keluarga",
@@ -2466,7 +2466,7 @@ function buildPrompt(input) {
           "Elakkan claim berlebihan. Produk boleh bantu ruang nampak lebih kemas/premium, bukan selesaikan semua masalah hidup.",
           "Nada mesti terasa macam orang Malaysia bercerita di Threads: sedikit vulnerable, tidak skema, tidak terlalu salesy, ada rasa 'aku pun pernah rasa macam ni'.",
           "Pastikan ada deep storyline walaupun ringkas: watak aku, masalah kecil harian, rasa yang terpendam, titik mula berubah, kemudian produk sebagai solusi kecil.",
-          `Manfaatkan limit Threads: sasarkan ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara untuk setiap POST UTAMA, REPLY 1, dan REPLY 2. Jangan pendek sangat kecuali perlu untuk elak lebih ${threadPostMaxChars} aksara.`,
+          `Sasarkan ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara untuk setiap POST UTAMA, REPLY 1, dan REPLY 2. Jangan terlalu panjang; simpan emosi, cerita, dan CTA dalam ayat padat yang sedap dibaca.`,
           "Setiap post perlu rasa lengkap: 2-4 ayat pendek yang ada detail visual, rasa manusia, dan flow cerita. Jangan tulis satu ayat generic sahaja.",
           "Gunakan Bahasa Melayu Malaysia yang kemas. Boleh santai, tetapi jangan guna typo, slanga keterlaluan, ayat kasar, atau ejaan cacat seperti 'tgok', 'macan', 'ubsuasana'.",
           "Reply 2 mesti akhiri dengan affiliate link yang tepat tanpa mengubah domain, ejaan, atau karakter link.",
@@ -2486,7 +2486,7 @@ function buildPrompt(input) {
           `Mod auto konteks: ${autoContext}`,
           "Format setiap versi: POST UTAMA, REPLY 1, REPLY 2.",
           `Setiap post maksimum ${threadPostMaxChars} aksara termasuk ruang dan link.`,
-          `Target panjang setiap post: ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara. Ini aksara, bukan perkataan. Gunakan ruang ini untuk deep storytelling yang sedap dibaca.`,
+          `Target panjang setiap post: ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara. Ini aksara, bukan perkataan. Tulis deep storytelling yang padat, natural, dan tidak meleret.`,
           "Post utama mesti mula dengan hook yang buat orang berhenti scroll: rasa penat, malu kecil, harapan, atau konflik rumah yang familiar.",
           "Reply 1 kembangkan emosi cerita secara spesifik: situasi harian, benda yang selalu dipandang, rasa rumah belum siap, atau mood yang jatuh/naik.",
           "Reply 2 bawa resolusi secara lembut: tunjuk bagaimana produk dalam gambar relevan dengan cerita, kemudian CTA ikhlas dan link affiliate.",
@@ -2630,6 +2630,7 @@ function inferStoryProductKind(value) {
   if (/poh\s*kong|\bgold\b|\bemas\b|bunga raya|24k|999/.test(text)) return "gold";
   if (/solar|outdoor|street|lampu jalan|waterproof|laman|pagar|porch/.test(text)) return "solar";
   if (/fairy|dawai|string\s*light|kelip|lampu\s*led/.test(text)) return "fairy_light";
+  if (/mommyhana|excel\s*hana|organizer|storage|rak|kotak|susun|barang\s+harian|simpan\s+barang/.test(text)) return "organizer";
   if (/marble|flexi\s*marble|wallpaper|wall\s*sheet|dinding|dekor|deco/.test(text)) return "marble";
   return "";
 }
@@ -2639,9 +2640,10 @@ function inferAffiliateProductKind(link) {
   if (/7VDqSOoKf3/i.test(value)) return "marble";
   if (/5q5lqSXkro/i.test(value)) return "fairy_light";
   if (/902oCbnlhL/i.test(value)) return "solar";
-  if (/5q5mTxqz8i/i.test(value)) return "pressure_cooker";
+  if (/5q5mTxqz8i|gNr3WWiCB/i.test(value)) return "pressure_cooker";
   if (/2g8lFhByWQ/i.test(value)) return "sambal";
   if (/9zvMgGgvG7/i.test(value)) return "gold";
+  if (/9KfjNdntZN/i.test(value)) return "organizer";
   return "";
 }
 
@@ -2677,6 +2679,9 @@ function detectStoryProductAlignment(productText, fullText, affiliateLink = "") 
     ],
     solar: [
       /fairy|string\s*light|lampu\s+dawai|kepala\s+katil|bilik\s+cozy|rak\s+kecil|tepi\s+cermin/,
+    ],
+    organizer: [
+      /\bsambal\b|nyet|\bpedas\b|\blauk\b|nasi\s+panas|marble|wallpaper|\bgold\b|\bemas\b|24k|pressure\s*cooker|periuk\s+tekanan|fairy|string\s*light|solar/,
     ],
   };
 
@@ -2717,7 +2722,7 @@ function auditStoryQuality(version, input, affiliateLink) {
   );
   checks.push({
     key: "target_length",
-    label: `Manfaatkan ruang ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`,
+    label: `Panjang natural ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`,
     passed: targetLengthOk,
   });
 
@@ -2764,6 +2769,7 @@ function inferLengthPolishKind(post) {
   if (/sambal|nyet|khairulaming/.test(title)) return "sambal";
   if (/poh\s*kong|\bgold\b|\bemas\b|bunga raya|24k|999/.test(title)) return "gold";
   if (/solar|outdoor|street|lampu jalan|waterproof|laman|pagar|porch/.test(title)) return "solar";
+  if (/mommyhana|excel\s*hana|organizer|storage|rak|kotak|susun|barang\s+harian|simpan\s+barang/.test(title)) return "organizer";
   if (/marble|flexi\s*marble|wallpaper|wall\s*sheet|dinding/.test(title)) return "marble";
   if (/fairy|dawai|kelip|string\s*light/.test(title)) return "dawai";
 
@@ -2785,11 +2791,13 @@ function inferLengthPolishKind(post) {
   if (/sambal|nyet|khairulaming|pedas|lauk|makan|nasi/.test(primary)) return "sambal";
   if (/poh\s*kong|\bgold\b|\bemas\b|bunga raya|24k|999/.test(primary)) return "gold";
   if (/solar|outdoor|street|lampu jalan|waterproof|laman|pagar|porch/.test(primary)) return "solar";
+  if (/mommyhana|excel\s*hana|organizer|storage|rak|kotak|susun|barang\s+harian|simpan\s+barang/.test(primary)) return "organizer";
   if (/marble|flexi\s*marble|dinding|wall\s*sheet|wallpaper|renovate/.test(primary)) return "marble";
   if (/dawai|fairy|kelip|string\s*light|cahaya\s*warm/.test(primary)) return "dawai";
   if (/sambal|nyet|khairulaming|pedas|lauk|makan|nasi/.test(haystack)) return "sambal";
   if (/poh\s*kong|\bgold\s*bar\b|\bemas\b|bunga raya|24k|999/.test(haystack)) return "gold";
   if (/solar|outdoor|street|lampu jalan|waterproof|laman|pagar|porch/.test(haystack)) return "solar";
+  if (/mommyhana|excel\s*hana|organizer|storage|rak|kotak|susun|barang\s+harian|simpan\s+barang/.test(haystack)) return "organizer";
   if (/marble|flexi\s*marble|dinding|wall\s*sheet|wallpaper|renovate/.test(haystack)) return "marble";
   if (/dawai|fairy|kelip|string\s*light|cahaya\s*warm/.test(haystack)) return "dawai";
   return "generic";
@@ -2804,6 +2812,8 @@ const lengthPolishShortFillers = [
   " Rasa lebih kemas.",
   " Simple tapi berguna.",
 ];
+const threadDanglingEndRe = /\b(?:tidak|mahu|cuma|tapi|dalam|atas|terlalu|perlu|bukan|yang|untuk|dengan|bila|kalau|supaya|seperti|macam|boleh|ingin|nak|tanpa|kerana|sebab|pada|dan|atau|di|ke|dari|sedang|waktu|daripada)[.!?]?$/i;
+const threadDanglingTailRe = /(?:tanpa\s+rasa|tak\s+perlu|kalau\s+sedang|kapasiti\s+dan|masakan\s+biasa,\s+dan|makan\s+dengan|masa\s+memasak\s+terlalu|nampak\s+cantik\s+atas|nasi\s+panas,\s+telur)[.!?]?$/i;
 
 const lengthPolishBanks = {
   marble: {
@@ -2891,6 +2901,23 @@ const lengthPolishBanks = {
       " Ini bukan janji untung, cuma pilihan untuk orang yang suka simpan aset fizikal.",
     ],
   },
+  organizer: {
+    main: [
+      " Kadang rumah bukan bersepah besar, cuma barang kecil tiada tempat tetap.",
+      " Bila meja penuh remote dan cable, kepala pun rasa ikut berserabut.",
+      " Rumah rasa lebih tenang bila barang harian ada ruang sendiri.",
+    ],
+    reply1: [
+      " Yang membantu ialah sistem kecil yang kita sanggup ikut setiap hari.",
+      " Bila susun barang jadi mudah, kemas tak lagi rasa seperti kerja besar.",
+      " Mula dari satu sudut pun cukup untuk rasa rumah lebih terkawal.",
+    ],
+    reply2: [
+      " Sesuai untuk meja, ruang kecil atau sudut barang harian yang selalu bergerak.",
+      " Semak saiz dan fungsi dulu supaya kena dengan ruang rumah sendiri.",
+      " Kalau nak mula kemas perlahan-lahan, satu organizer pun boleh jadi permulaan.",
+    ],
+  },
   generic: {
     main: [
       " Kadang benda kecil yang dekat dengan rutin harian boleh bagi rasa lega.",
@@ -2941,6 +2968,7 @@ function cleanThreadCopyForTarget(value) {
     .replace(/\bKalau nak,\s+(?=[A-Z])/gi, "")
     .replace(/\bKalau nak\.\s*/gi, "")
     .replace(/\bboleh survey dulu\.\s+(?=Kalau|Jika|Untuk)/gi, "")
+    .replace(/\.{2,}/g, ".")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -2951,7 +2979,33 @@ function trimThreadCopyAtWord(text, maxLength = threadPostTargetMaxChars) {
   let cut = clean.slice(0, maxLength).trim();
   const lastSpace = cut.lastIndexOf(" ");
   if (lastSpace > Math.max(40, Math.floor(maxLength * 0.72))) cut = cut.slice(0, lastSpace).trim();
-  return cut.replace(/[,.!?;:]+$/g, ".").replace(/\s+\./g, ".");
+  cut = cut.replace(/[,.!?;:]+$/g, ".").replace(/\s+\./g, ".");
+  if (!/[.!?]$/.test(cut)) cut += ".";
+  return stripThreadDanglingEnding(cut);
+}
+
+function hasThreadDanglingEnding(value) {
+  const body = singleLineThreadText(value).replace(/https?:\/\/\S+/g, "").trim();
+  if (!body) return false;
+  if (/\b(?:ada|cukup|bagi|masih ada)\s+rasa\.$/i.test(body)) return false;
+  return threadDanglingEndRe.test(body) || threadDanglingTailRe.test(body);
+}
+
+function stripThreadDanglingEnding(value) {
+  let output = singleLineThreadText(value);
+  let guard = 0;
+  while (hasThreadDanglingEnding(output) && guard < 4) {
+    const sentence = output.replace(/\s+[^.!?]*[.!?]$/u, "").trim();
+    if (sentence && sentence.length >= 120 && sentence.length < output.length) {
+      output = /[.!?]$/.test(sentence) ? sentence : `${sentence}.`;
+    } else {
+      const clause = output.replace(/(?:,\s*|\s+)[^,.!?]{0,90}[.!?]$/u, ".").trim();
+      if (!clause || clause === output) break;
+      output = clause;
+    }
+    guard += 1;
+  }
+  return output;
 }
 
 function rotateLengthBank(items, seed) {
@@ -3074,11 +3128,37 @@ function normalizeReply2ToTarget(post, scheduleData, kind, seed) {
 function applyThreadLengthTarget(post, number, scheduleData, reason = "Auto Audit length target") {
   if (!post) return false;
   const before = [post.main, post.reply1, post.reply2].map((value) => String(value || ""));
+  const affiliateLink = getPostAffiliateLink(post, scheduleData);
+  const beforeLengths = before.map((value) => value.length);
+  const alreadyTargetOk = beforeLengths.every(
+    (length) => length >= threadPostTargetMinChars && length <= threadPostTargetMaxChars,
+  );
+  const alreadyMaxOk = beforeLengths.every((length) => length > 0 && length <= threadPostMaxChars);
+  const alreadyLinkOk = affiliateLink
+    ? String(post.reply2 || "").trim().endsWith(affiliateLink)
+    : /https?:\/\/\S+$/i.test(String(post.reply2 || "").trim());
+  if (alreadyTargetOk && alreadyMaxOk && alreadyLinkOk && post.qualityStatus === "passed") {
+    const checks = Array.isArray(post.qualityChecks) ? post.qualityChecks : [];
+    const setCheck = (key, label, passed) => {
+      let check = checks.find((item) => item.key === key);
+      if (!check) {
+        check = { key, label, passed: Boolean(passed) };
+        checks.push(check);
+      }
+      check.label = label;
+      check.passed = Boolean(passed);
+    };
+    setCheck("length", `Setiap post <=${threadPostMaxChars} aksara`, true);
+    setCheck("target_length", `Panjang natural ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`, true);
+    post.qualityChecks = checks;
+    post.qualityReasons = Array.isArray(post.qualityReasons) ? post.qualityReasons : [];
+    if (affiliateLink && !post.affiliateLink) post.affiliateLink = affiliateLink;
+    return false;
+  }
   const kind = inferLengthPolishKind(post);
   post.main = appendCopyToTarget(post.main, kind, "main", number);
   post.reply1 = appendCopyToTarget(post.reply1, kind, "reply1", number + 1);
   post.reply2 = normalizeReply2ToTarget(post, scheduleData, kind, number + 2);
-  const affiliateLink = getPostAffiliateLink(post, scheduleData);
   if (affiliateLink && !post.affiliateLink) post.affiliateLink = affiliateLink;
 
   const lengths = [post.main, post.reply1, post.reply2].map((value) => String(value || "").length);
@@ -3095,7 +3175,7 @@ function applyThreadLengthTarget(post, number, scheduleData, reason = "Auto Audi
     check.passed = Boolean(passed);
   };
   setCheck("length", `Setiap post <=${threadPostMaxChars} aksara`, maxOk);
-  setCheck("target_length", `Manfaatkan ruang ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`, targetOk);
+  setCheck("target_length", `Panjang natural ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`, targetOk);
   post.qualityChecks = checks;
   post.threadLengthTarget = {
     min: threadPostTargetMinChars,
@@ -3160,7 +3240,7 @@ function buildPublisherPreflightLocal(number, post, scheduleData, statusData) {
   );
   addCheck(
     "target_length",
-    `Setiap post manfaatkan ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`,
+    `Setiap post dalam julat natural ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`,
     targetLengthOk,
     `Ada post belum berada dalam sasaran ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara.`,
   );
@@ -3651,11 +3731,11 @@ function inferFallbackProduct(input) {
     .map((value) => String(value || "").toLowerCase())
     .join(" ");
 
-  if (/sambal|cili|chili|sos|pedas|makan|lauk/.test(context)) {
+  if (/pressure\s*cooker|periuk\s+tekanan|dessini|multi\s*cooker|rice\s*function|steamer|non-stick/.test(context)) {
     return {
-      name: explicitTitle || "sambal ni",
-      moment: "bila makan ringkas pun rasa macam ada benda yang cukup",
-      bridge: "Kalau hari-hari sibuk dan nak lauk yang mudah naikkan selera",
+      name: explicitTitle || "pressure cooker ni",
+      moment: "bila kerja dapur boleh jadi lebih cepat tanpa rasa kelam-kabut",
+      bridge: "Kalau selalu rasa masa memasak terlalu panjang selepas balik kerja",
     };
   }
 
@@ -3680,6 +3760,14 @@ function inferFallbackProduct(input) {
       name: explicitTitle || "organizer ni",
       moment: "bila barang yang selalu bersepah akhirnya ada tempat sendiri",
       bridge: "Kalau tengah cuba kemaskan rutin rumah sedikit demi sedikit",
+    };
+  }
+
+  if (/sambal|cili|chili|sos|pedas|makan|lauk/.test(context)) {
+    return {
+      name: explicitTitle || "sambal ni",
+      moment: "bila makan ringkas pun rasa macam ada benda yang cukup",
+      bridge: "Kalau hari-hari sibuk dan nak lauk yang mudah naikkan selera",
     };
   }
 
@@ -4118,7 +4206,7 @@ async function autoScheduleStoryRunReviews(scheduleData, runs) {
       productTitle: group.productTitle,
       productCategory: group.productCategory,
       sourceText,
-      imageNotes: "Autopilot recover story-run review: baiki supaya produk disebut jelas, deep storytelling BM Malaysia, soft-sell, setiap post 250-295 aksara dan bawah 300.",
+      imageNotes: `Autopilot recover story-run review: baiki supaya produk disebut jelas, deep storytelling BM Malaysia, soft-sell, setiap post ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara dan bawah ${threadPostMaxChars}.`,
       imageUrl: group.imageUrl,
       theme: "auto",
       versions: group.targets.length,
@@ -4250,7 +4338,7 @@ async function getProductAudit() {
         : post.qualityStatus === "review"
           ? "Auto Guard Quality Gate"
           : summary.targetLengthIssues.some((issue) => issue.number === number)
-            ? "Belum capai 250-295 aksara"
+            ? `Belum capai ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara`
           : "Had aksara / metadata",
       main: post.main || "",
       reply1: post.reply1 || "",
@@ -4530,7 +4618,7 @@ async function runAutoProductAudit() {
 
   posts.forEach((post, index) => {
     const number = index + 1;
-    const changed = applyThreadLengthTarget(post, number, scheduleData, "Auto Audit: semua siri disasarkan 250-295 aksara.");
+    const changed = applyThreadLengthTarget(post, number, scheduleData, `Auto Audit: semua siri disasarkan ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara.`);
     if (changed) {
       lengthAdjustedNumbers.push(number);
       touched += 1;
@@ -4678,7 +4766,7 @@ async function runAutoProductAudit() {
   scheduleData.posts = posts;
   scheduleData.lastAutoProductAuditAt = `${malaysiaNow()} GMT+8`;
   scheduleData.lastAutoProductAuditNote =
-    `${touched} siri dikemas kini. ${lengthAdjustedNumbers.length} capai target 250-295 aksara, ${autoFilledCount} auto isi produk, ${linkVerifiedCount} link-verified, ${protectedCount} siri diguard automatik, ${regenerated.updatedNumbers.length} auto-regenerate, ${recoveredStoryRuns.scheduledNumbers.length} story-run auto masuk jadual.`;
+    `${touched} siri dikemas kini. ${lengthAdjustedNumbers.length} capai target ${threadPostTargetMinChars}-${threadPostTargetMaxChars} aksara, ${autoFilledCount} auto isi produk, ${linkVerifiedCount} link-verified, ${protectedCount} siri diguard automatik, ${regenerated.updatedNumbers.length} auto-regenerate, ${recoveredStoryRuns.scheduledNumbers.length} story-run auto masuk jadual.`;
   await writeJsonFile(scheduleFile, scheduleData);
   if (regenerated.updatedNumbers.length || lengthAdjustedNumbers.length || recoveredStoryRuns.attemptedCount) await writeStoryRuns(runs);
 
@@ -5038,7 +5126,7 @@ function inferProductCategoryFromText(text) {
   if (/lampu|light|led|fairy/.test(lower)) {
     return "lampu dekorasi, suasana bilik, pencahayaan kecil";
   }
-  if (/organizer|storage|rak|kotak|susun/.test(lower)) {
+  if (/mommyhana|excel\s*hana|organizer|storage|rak|kotak|susun|simpan\s+barang|barang\s+harian/.test(lower)) {
     return "organizer rumah, simpanan barang, kemas ruang";
   }
   return "";
@@ -5063,9 +5151,9 @@ function inferStoryProductCandidate(text) {
       category: "lampu dekorasi, pencahayaan bilik, suasana meja atau ruang kecil",
     },
     {
-      pattern: /storage\s*box|kotak\s*simpan|bekas\s*simpan|organizer|rak\s*kecik|rak\s*kecil|susun\s*barang/,
-      title: "Organizer rumah",
-      category: "organizer rumah, simpanan barang, kemas ruang",
+      pattern: /mommyhana|excel\s*hana|storage\s*box|kotak\s*simpan|bekas\s*simpan|organizer|rak\s*kecik|rak\s*kecil|susun\s*barang|barang\s+harian/,
+      title: "MommyHana Excel Hana",
+      category: "rak serbaguna dan organizer rumah untuk susun barang harian",
     },
     {
       pattern: /room\s*divider|divider\s*lipat|pembahagi\s*ruang|partition/,
@@ -5739,6 +5827,7 @@ function productPreviewTerms(kind) {
     fairy_light: ["fairy", "string", "dawai", "lampu", "led"],
     solar: ["solar", "outdoor", "waterproof", "lampu"],
     gold: ["gold", "emas", "poh", "kong", "24k", "999"],
+    organizer: ["organizer", "rak", "susun", "barang", "kemas", "meja", "simpan"],
   };
   return terms[kind] || [];
 }
@@ -5751,6 +5840,7 @@ function productBlockTerms(kind) {
     fairy_light: ["solar", "street lamp", "lampu jalan"],
     solar: ["fairy", "string light", "lampu dawai"],
     gold: ["sambal", "marble", "wallpaper"],
+    organizer: ["sambal", "marble", "wallpaper", "gold bar", "24k", "pressure cooker", "lampu solar"],
   };
   return terms[kind] || [];
 }
